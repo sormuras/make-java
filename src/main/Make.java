@@ -1,3 +1,5 @@
+import static java.lang.System.Logger.Level.INFO;
+
 class Make {
 
   static final String VERSION = "master";
@@ -14,10 +16,18 @@ class Make {
     }
   }
 
-  private final System.Logger logger = System.getLogger("Make.java");
+  final System.Logger logger;
+
+  Make() {
+    this(System.getLogger("Make.java"));
+  }
+
+  Make(System.Logger logger) {
+    this.logger = logger;
+  }
 
   int run() {
-    logger.log(System.Logger.Level.INFO, "Make.java - {0}", VERSION);
+    logger.log(INFO, "Make.java - {0}", VERSION);
     return 0;
   }
 }
