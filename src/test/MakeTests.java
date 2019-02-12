@@ -2,9 +2,17 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.DynamicTest.dynamicTest;
 
+import java.lang.reflect.Modifier;
+import java.nio.file.FileSystems;
+import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
+import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestFactory;
 import org.junit.jupiter.api.function.Executable;
 
 class MakeTests {
@@ -19,6 +27,22 @@ class MakeTests {
   }
 
   @Test
+  void userPathIsCurrentWorkingDirectory() {
+    assertEquals(Path.of(".").normalize().toAbsolutePath(), Make.USER_PATH);
+  }
+
+  @Test
+  void hasPublicStaticVoidMainWithVarArgs() throws Exception {
+    var main = Make.class.getMethod("main", String[].class);
+    assertTrue(Modifier.isPublic(main.getModifiers()));
+    assertTrue(Modifier.isStatic(main.getModifiers()));
+    assertSame(void.class, main.getReturnType());
+    assertEquals("main", main.getName());
+    assertTrue(main.isVarArgs());
+    assertEquals(0, main.getExceptionTypes().length);
+  }
+
+  @Test
   void mainDoesNotThrow() {
     assertDoesNotThrow((Executable) Make::main);
   }
@@ -27,15 +51,28 @@ class MakeTests {
   void defaults() {
     var make = new Make();
     assertEquals("Make.java", make.logger.getName());
+    assertEquals(System.getProperty("user.dir"), make.base.toString());
   }
 
   @Test
   void runReturnsZero() {
     var logger = new CollectingLogger();
-    var make = new Make(logger);
+    var base = Path.of(".").toAbsolutePath();
+    var make = new Make(logger, base);
     assertEquals(0, make.run());
-    assertSame(logger, make.logger);
     assertTrue(logger.getLines().contains("INFO: Make.java - " + Make.VERSION));
+  }
+
+  @TestFactory
+  Stream<DynamicTest> runReturnsOneForFileSystemRoots() {
+    return StreamSupport.stream(FileSystems.getDefault().getRootDirectories().spliterator(), false)
+        .map(path -> dynamicTest("" + path, () -> runReturnsOneForAnyFileSystemRoot(path)));
+  }
+
+  private void runReturnsOneForAnyFileSystemRoot(Path root) {
+    var logger = new CollectingLogger();
+    var make = new Make(logger, root);
+    assertEquals(1, make.run());
   }
 
   @Test

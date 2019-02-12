@@ -1,8 +1,13 @@
+import java.nio.file.Path;
+
+import static java.lang.System.Logger.Level.ERROR;
 import static java.lang.System.Logger.Level.INFO;
 
 class Make {
 
   static final String VERSION = "master";
+
+  static final Path USER_PATH = Path.of(System.getProperty("user.dir"));
 
   public static void main(String... args) {
     var format = "java.util.logging.SimpleFormatter.format";
@@ -16,18 +21,24 @@ class Make {
     }
   }
 
+  final Path base;
   final System.Logger logger;
 
   Make() {
-    this(System.getLogger("Make.java"));
+    this(System.getLogger("Make.java"), USER_PATH);
   }
 
-  Make(System.Logger logger) {
+  Make(System.Logger logger, Path base) {
     this.logger = logger;
+    this.base = base;
   }
 
   int run() {
     logger.log(INFO, "Make.java - {0}", VERSION);
+    if (base.getFileName() == null) {
+      logger.log(ERROR, "Base path has zero elements!");
+      return 1;
+    }
     return 0;
   }
 }
