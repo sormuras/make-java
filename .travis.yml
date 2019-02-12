@@ -1,0 +1,22 @@
+dist: xenial
+language: java
+
+install:
+- java --version
+
+script:
+- export junit_platform_version='1.4.0'
+- wget --timestamping --directory-prefix "build" "http://central.maven.org/maven2/org/junit/platform/junit-platform-console-standalone/${junit_platform_version}/junit-platform-console-standalone-${junit_platform_version}.jar"
+- javac -d build/main src/main/Make.java
+- javac -d build/test --class-path build/main:build/junit-platform-console-standalone-${junit_platform_version}.jar $(find src/test -name "*.java")
+- java -ea -jar build/junit-platform-console-standalone-${junit_platform_version}.jar --class-path build/test --class-path src/test --class-path build/main --scan-class-path
+
+after_success:
+#- cd $TRAVIS_BUILD_DIR/demo/00-bootstrap
+#- ./bootstrap.sh
+
+#- cd $TRAVIS_BUILD_DIR/demo/01-hello-world
+#- java ../../src/bach/Bach.java
+
+#- cd $TRAVIS_BUILD_DIR/demo/02-testing
+#- java ../../src/bach/Bach.java
