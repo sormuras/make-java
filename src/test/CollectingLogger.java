@@ -5,7 +5,12 @@ import java.util.ResourceBundle;
 
 class CollectingLogger implements System.Logger {
 
+  private final String name;
   private final List<String> lines = new ArrayList<>();
+
+  CollectingLogger(String name) {
+    this.name = name;
+  }
 
   List<String> getLines() {
     return lines;
@@ -13,7 +18,7 @@ class CollectingLogger implements System.Logger {
 
   @Override
   public String getName() {
-    return "*";
+    return name;
   }
 
   @Override
