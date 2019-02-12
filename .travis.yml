@@ -1,6 +1,9 @@
 dist: xenial
 language: java
 
+before_install:
+- sudo apt-get install tree
+
 install:
 - export junit_platform_version="1.4.0"
 - export junit_jar="junit-platform-console-standalone-${junit_platform_version}.jar"
@@ -12,7 +15,6 @@ script:
 - java -ea --class-path build/test:build/main:src/test:build/${junit_jar} org.junit.platform.console.ConsoleLauncher --scan-class-path
 
 after_success:
-- ls -la build
 - tree build
 
 #- cd $TRAVIS_BUILD_DIR/demo/00-bootstrap
