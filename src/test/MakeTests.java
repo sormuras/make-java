@@ -1,12 +1,14 @@
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.DynamicTest.dynamicTest;
 
 import java.lang.reflect.Modifier;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -48,30 +50,51 @@ class MakeTests {
   }
 
   @Test
+  void mainWithFailDoesThrow() {
+    var e = assertThrows(Error.class, () -> Make.main("FAIL"));
+    assertEquals("Make.java failed with error code: " + 1, e.getMessage());
+  }
+
+  @Test
   void defaults() {
     var make = new Make();
     assertEquals("Make.java", make.logger.getName());
     assertEquals(System.getProperty("user.dir"), make.base.toString());
+    assertEquals(List.of(), make.arguments);
+  }
+
+  @Test
+  void defaultsWithCustomArguments() {
+    var make = new Make(List.of("1", "2", "3"));
+    assertEquals(List.of("1", "2", "3"), make.arguments);
   }
 
   @Test
   void runReturnsZero() {
-    var logger = new CollectingLogger();
+    var logger = new CollectingLogger("*");
     var base = Path.of(".").toAbsolutePath();
-    var make = new Make(logger, base);
+    var make = new Make(logger, base, List.of());
     assertEquals(0, make.run());
     assertTrue(logger.getLines().contains("INFO: Make.java - " + Make.VERSION));
+  }
+
+  @Test
+  void runReturnsOneWhenFailIsFoundInArguments() {
+    var logger = new CollectingLogger("*");
+    var base = Path.of(".").toAbsolutePath();
+    var make = new Make(logger, base, List.of("FAIL"));
+    assertEquals(1, make.run());
   }
 
   @TestFactory
   Stream<DynamicTest> runReturnsOneForFileSystemRoots() {
     return StreamSupport.stream(FileSystems.getDefault().getRootDirectories().spliterator(), false)
-        .map(path -> dynamicTest("" + path, () -> runReturnsOneForAnyFileSystemRoot(path)));
+        .map(path -> dynamicTest("" + path, () -> runReturnsOneForFileSystemRoot(path)));
   }
 
-  private void runReturnsOneForAnyFileSystemRoot(Path root) {
-    var logger = new CollectingLogger();
-    var make = new Make(logger, root);
+  private void runReturnsOneForFileSystemRoot(Path root) {
+    var logger = new CollectingLogger("*");
+    var make = new Make(logger, root, List.of());
     assertEquals(1, make.run());
   }
 
