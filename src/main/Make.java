@@ -147,8 +147,7 @@ class Make {
             run(make, uri);
           }
           return 0;
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
           make.logger.log(ERROR, "Download failed: " + e.getMessage());
           return 1;
         }
@@ -192,7 +191,7 @@ class Make {
           }
           make.logger.log(INFO, "Downloaded {0} successfully.", fileName);
           make.logger.log(DEBUG, " o Size -> {0} bytes", Files.size(target));
-          make.logger.log(DEBUG, " o Last Modified -> {0}",  urlLastModifiedTime);
+          make.logger.log(DEBUG, " o Last Modified -> {0}", urlLastModifiedTime);
         }
       }
     }

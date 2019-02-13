@@ -1,6 +1,5 @@
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertLinesMatch;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.URI;
@@ -58,7 +57,7 @@ class ActionTests {
               "Downloading " + tempFile.toUri() + "...",
               "Transferring " + tempFile.toUri() + "...",
               "Downloaded source.txt successfully.",
-              " o Size -> 32 bytes",
+              " o Size -> .. bytes", // 32 on Windows, 27 on Linux/Mac
               " o Last Modified .+",
               "Action Download succeeded."),
           logger.getLines());
@@ -92,8 +91,6 @@ class ActionTests {
       // offline mode with error
       logger.clear();
       Files.delete(actual);
-      // var e = assertThrows(IllegalStateException.class, () -> make.run(download), logger.toString());
-      // assertEquals("Target is missing and being offline: " + tempFile.toUri(), e.getMessage());
       assertEquals(1, make.run(download));
       assertLinesMatch(
           List.of(
@@ -119,7 +116,7 @@ class ActionTests {
               "Local file differs from remote -- replacing it...",
               "Transferring " + tempFile.toUri() + "...",
               "Downloaded source.txt successfully.",
-              " o Size -> 32 bytes",
+              " o Size -> .. bytes", // 32 on Windows, 27 on Linux/Mac
               " o Last Modified .+",
               "Action Download succeeded."),
           logger.getLines());
