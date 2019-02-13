@@ -86,6 +86,15 @@ class MakeTests {
     assertEquals(1, make.run());
   }
 
+  @Test
+  void runWithEmptyIterableReturnsZero() {
+    var logger = new CollectingLogger("*");
+    var base = Path.of(".").toAbsolutePath();
+    var make = new Make(logger, base, List.of());
+    assertEquals(0, make.run(new Make.Action[0]));
+    assertEquals(0, make.run(List.of()));
+  }
+
   @TestFactory
   Stream<DynamicTest> runReturnsOneForFileSystemRoots() {
     return StreamSupport.stream(FileSystems.getDefault().getRootDirectories().spliterator(), false)

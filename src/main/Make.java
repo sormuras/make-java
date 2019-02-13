@@ -1,9 +1,9 @@
-import java.nio.file.Path;
-import java.util.List;
-
 import static java.lang.System.Logger.Level.ERROR;
 import static java.lang.System.Logger.Level.INFO;
 import static java.lang.System.Logger.Level.WARNING;
+
+import java.nio.file.Path;
+import java.util.List;
 
 class Make {
 
@@ -42,15 +42,58 @@ class Make {
   }
 
   int run() {
-    logger.log(INFO, "Make.java - {0}", VERSION);
-    if (base.getNameCount() == 0) {
-      logger.log(ERROR, "Base path has zero elements!");
-      return 1;
+    return run(new Action.Banner(), new Action.Check());
+  }
+
+  int run(Action... actions) {
+    return run(List.of(actions));
+  }
+
+  int run(List<Action> actions) {
+    if (actions.isEmpty()) {
+      logger.log(WARNING, "No actions to run...");
     }
-    if (arguments.contains("FAIL")) {
-      logger.log(WARNING, "Error trigger 'FAIL' detected!");
-      return 1;
+    for (var action : actions) {
+      var code = action.run(this);
+      if (code != 0) {
+        logger.log(ERROR, "Action {0} failed with error code: {1}", action.name(), code);
+        return code;
+      }
     }
     return 0;
+  }
+
+  @FunctionalInterface
+  interface Action {
+    default String name() {
+      return getClass().getSimpleName();
+    }
+
+    int run(Make make);
+
+    class Banner implements Action {
+
+      @Override
+      public int run(Make make) {
+        make.logger.log(INFO, "Make.java - {0}", Make.VERSION);
+        return 0;
+      }
+    }
+
+    class Check implements Action {
+
+      @Override
+      public int run(Make make) {
+        if (make.base.getNameCount() == 0) {
+          make.logger.log(ERROR, "Base path has zero elements!");
+          return 1;
+        }
+        if (make.arguments.contains("FAIL")) {
+          make.logger.log(WARNING, "Error trigger 'FAIL' detected!");
+          return 1;
+        }
+        return 0;
+      }
+    }
   }
 }
