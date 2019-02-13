@@ -31,6 +31,7 @@ class Make {
   final List<String> arguments;
   final Path base;
   final System.Logger logger;
+  final Variables var;
 
   Make() {
     this(List.of());
@@ -43,7 +44,8 @@ class Make {
   Make(System.Logger logger, Path base, List<String> arguments) {
     this.logger = logger;
     this.base = base;
-    this.arguments = arguments;
+    this.arguments = List.copyOf(arguments);
+    this.var = new Variables();
   }
 
   /** Run default actions. */
@@ -70,6 +72,11 @@ class Make {
       }
     }
     return 0;
+  }
+
+  /** Variable state holder. */
+  class Variables {
+    boolean offline = false;
   }
 
   /** Action running on Make instances. */
