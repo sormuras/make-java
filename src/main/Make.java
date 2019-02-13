@@ -3,7 +3,10 @@ import static java.lang.System.Logger.Level.ERROR;
 import static java.lang.System.Logger.Level.INFO;
 import static java.lang.System.Logger.Level.WARNING;
 
+import java.net.URI;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.util.List;
 
 /** Java build tool main program. */
@@ -114,6 +117,82 @@ class Make {
           return 1;
         }
         return 0;
+      }
+    }
+
+    /** Download files from supplied uris to specified destination directory. */
+    class Download implements Action {
+
+      /** Extract path last element from the supplied uri. */
+      static String fileName(URI uri) {
+        var urlString = uri.getPath();
+        var begin = urlString.lastIndexOf('/') + 1;
+        return urlString.substring(begin).split("\\?")[0].split("#")[0];
+      }
+
+      final Path destination;
+      final List<URI> uris;
+
+      Download(Path destination, URI... uris) {
+        this.destination = destination;
+        this.uris = List.of(uris);
+      }
+
+      @Override
+      public int run(Make make) {
+        make.logger.log(DEBUG, "Downloading {0} file(s) to {1}...", uris.size(), destination);
+        try {
+          for (var uri : uris) {
+            run(make, uri);
+          }
+          return 0;
+        }
+        catch (Exception e) {
+          make.logger.log(ERROR, "Download failed: " + e.getMessage());
+          return 1;
+        }
+      }
+
+      private void run(Make make, URI uri) throws Exception {
+        make.logger.log(DEBUG, "Downloading {0}...", uri);
+        var fileName = fileName(uri);
+        var target = destination.resolve(fileName);
+        if (make.var.offline) {
+          if (Files.exists(target)) {
+            make.logger.log(DEBUG, "Offline mode is active and target already exists.");
+            return;
+          }
+          throw new IllegalStateException("Target is missing and being offline: " + target);
+        }
+        Files.createDirectories(destination);
+        var connection = uri.toURL().openConnection();
+        try (var sourceStream = connection.getInputStream()) {
+          var urlLastModifiedMillis = connection.getLastModified();
+          var urlLastModifiedTime = FileTime.fromMillis(urlLastModifiedMillis);
+          if (Files.exists(target)) {
+            make.logger.log(DEBUG, "Local file exists. Comparing attributes to remote file...");
+            var unknownTime = urlLastModifiedMillis == 0L;
+            if (Files.getLastModifiedTime(target).equals(urlLastModifiedTime) || unknownTime) {
+              var localFileSize = Files.size(target);
+              var contentLength = connection.getContentLengthLong();
+              if (localFileSize == contentLength) {
+                make.logger.log(DEBUG, "Local and remote file attributes seem to match.");
+                return;
+              }
+            }
+            make.logger.log(DEBUG, "Local file differs from remote -- replacing it...");
+          }
+          make.logger.log(DEBUG, "Transferring {0}...", uri);
+          try (var targetStream = Files.newOutputStream(target)) {
+            sourceStream.transferTo(targetStream);
+          }
+          if (urlLastModifiedMillis != 0L) {
+            Files.setLastModifiedTime(target, urlLastModifiedTime);
+          }
+          make.logger.log(INFO, "Downloaded {0} successfully.", fileName);
+          make.logger.log(DEBUG, " o Size -> {0} bytes", Files.size(target));
+          make.logger.log(DEBUG, " o Last Modified -> {0}",  urlLastModifiedTime);
+        }
       }
     }
   }
