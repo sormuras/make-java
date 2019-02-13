@@ -12,6 +12,10 @@ class CollectingLogger implements System.Logger {
     this.name = name;
   }
 
+  void clear() {
+    lines.clear();
+  }
+
   List<String> getLines() {
     return lines;
   }
@@ -28,11 +32,17 @@ class CollectingLogger implements System.Logger {
 
   @Override
   public void log(Level level, ResourceBundle bundle, String msg, Throwable thrown) {
-    lines.add(level + ": " + msg);
+    lines.add(msg);
   }
 
   @Override
   public void log(Level level, ResourceBundle bundle, String format, Object... params) {
-    lines.add(level + ": " + MessageFormat.format(format, params));
+    var msg = params != null && params.length > 0 ? MessageFormat.format(format, params) : format;
+    lines.add(msg);
+  }
+
+  @Override
+  public String toString() {
+    return "Logger " + name + " with " + lines.size() + " lines:\n" + String.join("\n", lines);
   }
 }
