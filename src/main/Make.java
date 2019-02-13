@@ -73,6 +73,7 @@ class Make {
         logger.log(ERROR, "Action {0} failed with error code: {1}", action.name(), code);
         return code;
       }
+      logger.log(DEBUG, "Action {0} succeeded.", action.name());
     }
     return 0;
   }

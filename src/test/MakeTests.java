@@ -75,7 +75,7 @@ class MakeTests {
     var base = Path.of(".").toAbsolutePath();
     var make = new Make(logger, base, List.of());
     assertEquals(0, make.run());
-    assertTrue(logger.getLines().contains("INFO: Make.java - " + Make.VERSION));
+    assertTrue(logger.getLines().contains("Make.java - " + Make.VERSION));
   }
 
   @Test
