@@ -1,7 +1,6 @@
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
@@ -30,10 +29,14 @@ class PropertyTests {
   }
 
   @Test
-  void pathToolJUnitURI() {
-    assertNotNull(Make.Property.TOOL_JUNIT_URI);
+  void pathCacheModules() {
+    assertNotNull(Make.Property.PATH_CACHE_MODULES);
+    assertEquals(".make/modules", make.var.get(Make.Property.PATH_CACHE_MODULES));
+    assertEquals(Path.of(".make", "modules"), make.based(Make.Property.PATH_CACHE_MODULES));
+  }
+
+  @Test
+  void toolJUnitUriEndsWithJar() {
     assertTrue(make.var.get(Make.Property.TOOL_JUNIT_URI).endsWith(".jar"));
-    var e = assertThrows(Exception.class, () -> make.based(Make.Property.TOOL_JUNIT_URI));
-    assertTrue(e.getMessage().startsWith("Illegal char <:> at index 4: http://"));
   }
 }

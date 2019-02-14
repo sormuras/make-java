@@ -101,6 +101,9 @@ class Make {
     /** Cache of binary tools. */
     PATH_CACHE_TOOLS(".make/tools"),
 
+    /** Cache of resolved modules. */
+    PATH_CACHE_MODULES(".make/modules"),
+
     /** JUnit Platform Console Standalone URI. */
     TOOL_JUNIT_URI(
         "http://central.maven.org/maven2/org/junit/platform/junit-platform-console-standalone/1.4.0/junit-platform-console-standalone-1.4.0.jar");
