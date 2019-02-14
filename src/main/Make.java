@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.util.List;
+import java.util.Properties;
 
 /** Java build tool main program. */
 class Make {
@@ -80,7 +81,34 @@ class Make {
 
   /** Variable state holder. */
   class Variables {
-    boolean offline = false;
+
+    /** Managed properties loaded from {@code ${base}/make.properties} file. */
+    final Properties properties = load(base.resolve("make.properties"));
+
+    /** Offline mode. */
+    boolean offline = Boolean.parseBoolean(get("make.offline", "false"));
+
+    /** Get value for the supplied property key. */
+    String get(String key, String defaultValue) {
+      var value = System.getProperty(key);
+      if (value != null) {
+        return value;
+      }
+      return properties.getProperty(key, defaultValue);
+    }
+
+    /** Load from properties from path. */
+    Properties load(Path path) {
+      var properties = new Properties();
+      if (Files.exists(path)) {
+        try (var stream = Files.newInputStream(path)) {
+          properties.load(stream);
+        } catch (Exception e) {
+          throw new Error("Loading properties failed: " + path, e);
+        }
+      }
+      return properties;
+    }
   }
 
   /** Action running on Make instances. */
