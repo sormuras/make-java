@@ -52,6 +52,24 @@ class Make {
     this.var = new Variables();
   }
 
+  Path based(Path path) {
+    if (path.isAbsolute()) {
+      return path;
+    }
+    if (base.equals(USER_PATH)) {
+      return path;
+    }
+    return base.resolve(path).normalize();
+  }
+
+  Path based(String first, String... more) {
+    return based(Path.of(first, more));
+  }
+
+  Path based(Property property) {
+    return based(Path.of(var.get(property)));
+  }
+
   /** Run default actions. */
   int run() {
     return run(new Action.Banner(), new Action.Check());
