@@ -79,6 +79,25 @@ class Make {
     return 0;
   }
 
+  enum Property {
+    /** Cache of binary tools. */
+    PATH_CACHE_TOOLS(".make/tools"),
+
+    /** JUnit Platform Console Standalone URI. */
+    TOOL_JUNIT_URI(
+        "http://central.maven.org/maven2/org/junit/platform/junit-platform-console-standalone/1.4.0/junit-platform-console-standalone-1.4.0.jar");
+
+    final String key;
+    final String defaultValue;
+    final String description;
+
+    Property(String defaultValue, String... description) {
+      this.key = "make." + name().toLowerCase().replace('_', '.');
+      this.defaultValue = defaultValue;
+      this.description = String.join("", description);
+    }
+  }
+
   /** Variable state holder. */
   class Variables {
 
@@ -87,6 +106,10 @@ class Make {
 
     /** Offline mode. */
     boolean offline = Boolean.parseBoolean(get("make.offline", "false"));
+
+    String get(Property property) {
+      return get(property.key, property.defaultValue);
+    }
 
     /** Get value for the supplied property key. */
     String get(String key, String defaultValue) {
