@@ -144,7 +144,7 @@ class MakeTests {
     process.getOutputStream().write("var code = make.run()\n".getBytes());
     process.getOutputStream().write("/exit code\n".getBytes());
     process.getOutputStream().flush();
-    process.waitFor(5, TimeUnit.SECONDS);
+    process.waitFor(9, TimeUnit.SECONDS);
     var code = process.exitValue();
     assertEquals(0, code);
   }
@@ -154,7 +154,7 @@ class MakeTests {
     var builder = new ProcessBuilder("java");
     builder.command().add("src/main/Make.java");
     var process = builder.start();
-    process.waitFor(5, TimeUnit.SECONDS);
+    process.waitFor(9, TimeUnit.SECONDS);
     var code = process.exitValue();
     assertEquals(0, code);
   }
