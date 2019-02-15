@@ -1,18 +1,11 @@
 dist: xenial
 language: java
 
-before_install:
+install:
 - sudo apt-get install tree
 
-install:
-- export junit_platform_version="1.4.0"
-- export junit_jar="junit-platform-console-standalone-${junit_platform_version}.jar"
-- wget --timestamping --directory-prefix "build" "http://central.maven.org/maven2/org/junit/platform/junit-platform-console-standalone/${junit_platform_version}/${junit_jar}"
-
 script:
-- javac -d build/main src/main/Make.java
-- javac -d build/test --class-path build/main:build/${junit_jar} $(find src/test -name "*.java")
-- java -ea --class-path build/test:build/main:src/test:build/${junit_jar} org.junit.platform.console.ConsoleLauncher --scan-class-path
+- jshell ./build.jsh
 
 after_success:
 - tree build
