@@ -71,8 +71,13 @@ class MakeTests {
   }
 
   @Test
-  void mainWithFailDoesThrow() {
-    var e = assertThrows(Error.class, () -> Make.main("FAIL"));
+  void mainWithJavac() {
+    assertDoesNotThrow(() -> Make.main("tool", "javac", "--version"));
+  }
+
+  @Test
+  void mainWithUnnamedToolDoesThrow() {
+    var e = assertThrows(Error.class, () -> Make.main("tool"));
     assertEquals("Make.java failed with error code: " + 1, e.getMessage());
   }
 

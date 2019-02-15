@@ -86,7 +86,22 @@ class Make {
 
   /** Run default actions. */
   int run() {
-    return run(new Action.Banner(), new Action.Check());
+    if (arguments.isEmpty()) {
+      return run(new Action.Banner(), new Action.Check());
+    }
+    if (arguments.get(0).equalsIgnoreCase("tool")) {
+      if (arguments.size() == 1) {
+        logger.log(ERROR, "Missing name of tool to run!");
+        return 1;
+      }
+      var command = new Command(arguments.get(1));
+      command.addAll(arguments.subList(2, arguments.size()));
+      var tool = new Action.Tool(command);
+      tool.standardIO = true;
+      return run(new Action.Banner(), new Action.Check(), tool);
+    }
+    logger.log(ERROR, "Unsupported operation: " + arguments);
+    return 1;
   }
 
   /** Run supplied actions. */
@@ -197,10 +212,6 @@ class Make {
       public int run(Make make) {
         if (make.base.getNameCount() == 0) {
           make.logger.log(ERROR, "Base path has zero elements!");
-          return 1;
-        }
-        if (make.arguments.contains("FAIL")) {
-          make.logger.log(WARNING, "Error trigger 'FAIL' detected!");
           return 1;
         }
         return 0;
