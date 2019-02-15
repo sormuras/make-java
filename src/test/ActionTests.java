@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -139,11 +140,13 @@ class ActionTests {
 
     @Test
     void standardIO() {
+      var out = new StringBuilder();
       var tool = new Make.Action.Tool("java", "--version");
-      tool.standardIO = true;
+      make.var.out = out::append;
       var code = make.run(tool);
       var log = logger.toString();
       assertEquals(0, code, log);
+      assertTrue(out.toString().contains(Runtime.version().toString()), out.toString());
     }
 
     @Test

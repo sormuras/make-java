@@ -97,7 +97,8 @@ class Make {
       var command = new Command(arguments.get(1));
       command.addAll(arguments.subList(2, arguments.size()));
       var tool = new Action.Tool(command);
-      tool.standardIO = true;
+      var.out = System.out::println;
+      var.err = System.err::println;
       return run(new Action.Banner(), new Action.Check(), tool);
     }
     logger.log(ERROR, "Unsupported operation: " + arguments);
@@ -157,6 +158,13 @@ class Make {
     /** Offline mode. */
     boolean offline = Boolean.parseBoolean(get("make.offline", "false"));
 
+    /** Standard output line consumer. */
+    Consumer<String> out = line -> logger.log(DEBUG, line);
+
+    /** Error output line consumer. */
+    Consumer<String> err = line -> logger.log(ERROR, line);
+
+    /** Get value for the supplied property, using its key and default value. */
     String get(Property property) {
       return get(property.key, property.defaultValue);
     }
@@ -324,7 +332,6 @@ class Make {
 
       final String name;
       final List<String> args;
-      boolean standardIO = false;
 
       Tool(Command command) {
         this.name = command.name;
@@ -342,11 +349,8 @@ class Make {
         // ToolProvider SPI
         var provider = ToolProvider.findFirst(name);
         if (provider.isPresent()) {
-          if (standardIO) {
-            return provider.get().run(System.out, System.err, args.toArray(String[]::new));
-          }
-          var out = new PrintWriter(new Gobbler(msg -> make.logger.log(DEBUG, msg)), true);
-          var err = new PrintWriter(new Gobbler(msg -> make.logger.log(ERROR, msg)), true);
+          var out = new PrintWriter(new Gobbler(make.var.out), true);
+          var err = new PrintWriter(new Gobbler(make.var.err), true);
           return provider.get().run(out, err, args.toArray(String[]::new));
         }
         // Delegate to process builder.
@@ -357,12 +361,9 @@ class Make {
         command.addAll(args);
         var executor = Executors.newFixedThreadPool(2);
         try {
-          var builder = new ProcessBuilder(command);
-          var process = builder.start();
-          var out = new Gobbler(standardIO ? System.out::println : msg -> make.logger.log(DEBUG, msg), process.getInputStream());
-          var err = new Gobbler(standardIO ? System.err::println : msg -> make.logger.log(ERROR, msg), process.getErrorStream());
-          executor.submit(out);
-          executor.submit(err);
+          var process = new ProcessBuilder(command).start();
+          executor.submit(new Gobbler(make.var.out, process.getInputStream()));
+          executor.submit(new Gobbler(make.var.err, process.getErrorStream()));
           return process.waitFor();
         } catch (Exception e) {
           make.logger.log(ERROR, "Running tool failed: " + e.getMessage(), e);
