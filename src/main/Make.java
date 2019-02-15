@@ -16,6 +16,7 @@ import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
@@ -50,6 +51,7 @@ class Make {
   final Path base;
   final System.Logger logger;
   final Variables var;
+  final Project project;
 
   Make() {
     this(List.of());
@@ -64,6 +66,7 @@ class Make {
     this.base = base;
     this.arguments = List.copyOf(arguments);
     this.var = new Variables();
+    this.project = new Project();
   }
 
   Path based(Path path) {
@@ -127,12 +130,19 @@ class Make {
     return 0;
   }
 
+  /** Constants with default values. */
   enum Property {
     /** Cache of binary tools. */
     PATH_CACHE_TOOLS(".make/tools"),
 
     /** Cache of resolved modules. */
     PATH_CACHE_MODULES(".make/modules"),
+
+    /** Name of the project. */
+    PROJECT_NAME("project"),
+
+    /** Version of the project. */
+    PROJECT_VERSION("1.0.0-SNAPSHOT"),
 
     /** JUnit Platform Console Standalone URI. */
     TOOL_JUNIT_URI(
@@ -146,6 +156,20 @@ class Make {
       this.key = "make." + name().toLowerCase().replace('_', '.');
       this.defaultValue = defaultValue;
       this.description = String.join("", description);
+    }
+  }
+
+  /** Make's project object model. */
+  class Project {
+    final String name, version;
+
+    Project() {
+      var defaultName =
+          Optional.ofNullable(base.getFileName())
+              .map(Object::toString)
+              .orElse(Property.PROJECT_NAME.defaultValue);
+      this.name = var.get(Property.PROJECT_NAME.key, defaultName);
+      this.version = var.get(Property.PROJECT_VERSION);
     }
   }
 
@@ -368,8 +392,7 @@ class Make {
         } catch (Exception e) {
           make.logger.log(ERROR, "Running tool failed: " + e.getMessage(), e);
           return 1;
-        }
-        finally {
+        } finally {
           executor.shutdownNow();
         }
       }
