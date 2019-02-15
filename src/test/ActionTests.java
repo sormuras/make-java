@@ -122,4 +122,55 @@ class ActionTests {
           logger.getLines());
     }
   }
+
+
+  @Nested
+  class Tool {
+
+    @Test
+    void failsOnNonExistentTool() {
+      var tool = new Make.Action.Tool("does not exist", "really");
+      var code = make.run(tool);
+      var log = logger.toString();
+      assertEquals(1, code, log);
+      assertTrue(log.contains("does not exist"), log);
+      assertTrue(log.contains("Running tool failed:"), log);
+    }
+
+    @Test
+    void standardIO() {
+      var tool = new Make.Action.Tool("java", "--version");
+      tool.standardIO = true;
+      var code = make.run(tool);
+      var log = logger.toString();
+      assertEquals(0, code, log);
+    }
+
+    @Test
+    void java() {
+      var tool = new Make.Action.Tool("java", "--version");
+      var code = make.run(tool);
+      var log = logger.toString();
+      assertEquals(0, code, log);
+      assertTrue(log.contains(Runtime.version().toString()), log);
+    }
+
+    @Test
+    void javac() {
+      var tool = new Make.Action.Tool("javac", "--version");
+      var code = make.run(tool);
+      var log = logger.toString();
+      assertEquals(0, code, log);
+      assertTrue(log.contains("javac " + Runtime.version().feature()), log);
+    }
+
+    @Test
+    void javadoc() {
+      var tool = new Make.Action.Tool(new Make.Command("javadoc").add("--version"));
+      var code = make.run(tool);
+      var log = logger.toString();
+      assertEquals(0, code, log);
+      assertTrue(log.contains("javadoc " + Runtime.version().feature()), log);
+    }
+  }
 }

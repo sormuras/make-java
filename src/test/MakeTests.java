@@ -66,7 +66,7 @@ class MakeTests {
   }
 
   @Test
-  void mainDoesNotThrow() {
+  void mainWithoutArguments() {
     assertDoesNotThrow((Executable) Make::main);
   }
 

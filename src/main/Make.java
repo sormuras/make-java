@@ -3,12 +3,26 @@ import static java.lang.System.Logger.Level.ERROR;
 import static java.lang.System.Logger.Level.INFO;
 import static java.lang.System.Logger.Level.WARNING;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.Executors;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
+import java.util.spi.ToolProvider;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /** Java build tool main program. */
 class Make {
@@ -266,6 +280,178 @@ class Make {
           make.logger.log(DEBUG, " o Last Modified -> {0}", urlLastModifiedTime);
         }
       }
+    }
+
+    /** Tool runner action. */
+    class Tool implements Action {
+
+      class Gobbler extends StringWriter implements Runnable {
+
+        final Consumer<String> consumer;
+        final InputStream stream;
+
+        Gobbler(Consumer<String> consumer) {
+          this(consumer, InputStream.nullInputStream());
+        }
+
+        Gobbler(Consumer<String> consumer, InputStream stream) {
+          this.consumer = consumer;
+          this.stream = stream;
+        }
+
+        @Override
+        public void flush() {
+          toString().lines().forEach(consumer);
+          getBuffer().setLength(0);
+        }
+
+        @Override
+        public void run() {
+          new BufferedReader(new InputStreamReader(stream)).lines().forEach(consumer);
+        }
+      }
+
+      final String name;
+      final List<String> args;
+      boolean standardIO = false;
+
+      Tool(Command command) {
+        this.name = command.name;
+        this.args = command.arguments;
+      }
+
+      Tool(String name, String... args) {
+        this.name = name;
+        this.args = List.of(args);
+      }
+
+      @Override
+      public int run(Make make) {
+        make.logger.log(INFO, "Running tool: {0} {1}", name, String.join(" ", args));
+        // ToolProvider SPI
+        var provider = ToolProvider.findFirst(name);
+        if (provider.isPresent()) {
+          if (standardIO) {
+            return provider.get().run(System.out, System.err, args.toArray(String[]::new));
+          }
+          var out = new PrintWriter(new Gobbler(msg -> make.logger.log(DEBUG, msg)), true);
+          var err = new PrintWriter(new Gobbler(msg -> make.logger.log(ERROR, msg)), true);
+          return provider.get().run(out, err, args.toArray(String[]::new));
+        }
+        // Delegate to process builder.
+        // TODO Map to managed "jar" tool installation.
+        // TODO Find foundation tool executable in "${JDK}/bin" folder.
+        var command = new ArrayList<String>();
+        command.add(name);
+        command.addAll(args);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+          var builder = new ProcessBuilder(command);
+          var process = builder.start();
+          var out = new Gobbler(standardIO ? System.out::println : msg -> make.logger.log(DEBUG, msg), process.getInputStream());
+          var err = new Gobbler(standardIO ? System.err::println : msg -> make.logger.log(ERROR, msg), process.getErrorStream());
+          executor.submit(out);
+          executor.submit(err);
+          return process.waitFor();
+        } catch (Exception e) {
+          make.logger.log(ERROR, "Running tool failed: " + e.getMessage(), e);
+          return 1;
+        }
+        finally {
+          executor.shutdownNow();
+        }
+      }
+    }
+  }
+
+  /** Command line builder. */
+  static class Command {
+
+    /** Test supplied path for pointing to a Java source unit file. */
+    static boolean isJavaFile(Path path) {
+      if (Files.isRegularFile(path)) {
+        var name = path.getFileName().toString();
+        if (name.endsWith(".java")) {
+          return name.indexOf('.') == name.length() - 5; // single dot in filename
+        }
+      }
+      return false;
+    }
+
+    final String name;
+    final List<String> arguments;
+
+    Command(String name) {
+      this.name = name;
+      this.arguments = new ArrayList<>();
+    }
+
+    /** Add single non-null argument. */
+    Command add(Object argument) {
+      arguments.add(argument.toString());
+      return this;
+    }
+
+    /** Add single argument composed of joined path names using {@link File#pathSeparator}. */
+    Command add(Collection<Path> paths) {
+      return add(paths.stream(), File.pathSeparator);
+    }
+
+    /** Add single argument composed of all stream elements joined by specified separator. */
+    Command add(Stream<?> stream, String separator) {
+      return add(stream.map(Object::toString).collect(Collectors.joining(separator)));
+    }
+
+    /** Add all arguments by invoking {@link #add(Object)} for each element. */
+    Command addAll(Object... arguments) {
+      for (var argument : arguments) {
+        add(argument);
+      }
+      return this;
+    }
+
+    /** Add all arguments by invoking {@link #add(Object)} for each element. */
+    Command addAll(Iterable<?> arguments) {
+      arguments.forEach(this::add);
+      return this;
+    }
+
+    /** Add all files visited by walking specified root path recursively. */
+    Command addAll(Path root, Predicate<Path> predicate) {
+      try (var stream = Files.walk(root).filter(predicate)) {
+        stream.forEach(this::add);
+      } catch (Exception e) {
+        throw new Error("walking path `" + root + "` failed", e);
+      }
+      return this;
+    }
+
+    /** Add all files visited by walking specified root paths recursively. */
+    Command addAll(Collection<Path> roots, Predicate<Path> predicate) {
+      for (var root : roots) {
+        if (Files.notExists(root)) {
+          continue;
+        }
+        addAll(root, predicate);
+      }
+      return this;
+    }
+
+    /** Add all {@code .java} source files by walking specified root paths recursively. */
+    Command addAllJavaFiles(Collection<Path> roots) {
+      return addAll(roots, Command::isJavaFile);
+    }
+
+    /** Dump command executables and arguments using the provided string consumer. */
+    Command dump(Consumer<String> consumer) {
+      var iterator = arguments.listIterator();
+      consumer.accept(name);
+      while (iterator.hasNext()) {
+        var argument = iterator.next();
+        var indent = argument.startsWith("-") ? "" : "  ";
+        consumer.accept(indent + argument);
+      }
+      return this;
     }
   }
 }
