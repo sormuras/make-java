@@ -9,6 +9,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.lang.module.ModuleFinder;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,9 +20,12 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 import java.util.spi.ToolProvider;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -526,7 +530,7 @@ class Make {
             out.accept("." + prefix + string);
           }
         } catch (Exception e) {
-          //throw new UncheckedIOException("dumping tree failed: " + root, e);
+          // throw new UncheckedIOException("dumping tree failed: " + root, e);
           return 1;
         }
         return 0;
@@ -622,6 +626,82 @@ class Make {
         consumer.accept(indent + argument);
       }
       return this;
+    }
+  }
+
+  /** Simple module information collector. */
+  static class ModuleInfo {
+
+    private static final Pattern NAME = Pattern.compile("(module)\\s+(.+)\\s*\\{.*");
+
+    private static final Pattern REQUIRES = Pattern.compile("requires (.+?);", Pattern.DOTALL);
+
+    static ModuleInfo of(Path path) {
+      if (Files.isDirectory(path)) {
+        path = path.resolve("module-info.java");
+      }
+      try {
+        return of(Files.readString(path));
+      } catch (Exception e) {
+        throw new RuntimeException("reading '" + path + "' failed", e);
+      }
+    }
+
+    static ModuleInfo of(String source) {
+      // extract module name
+      var nameMatcher = NAME.matcher(source);
+      if (!nameMatcher.find()) {
+        throw new IllegalArgumentException(
+            "expected java module descriptor unit, but got: " + source);
+      }
+      var name = nameMatcher.group(2).trim();
+
+      // extract required module names
+      var requiresMatcher = REQUIRES.matcher(source);
+      var requires = new TreeSet<String>();
+      while (requiresMatcher.find()) {
+        var split = requiresMatcher.group(1).trim().split("\\s+");
+        requires.add(split[split.length - 1]);
+      }
+      return new ModuleInfo(name, requires);
+    }
+
+    /** Enumerate all system module names. */
+    static Set<String> findSystemModuleNames() {
+      return ModuleFinder.ofSystem().findAll().stream()
+          .map(reference -> reference.descriptor().name())
+          .collect(Collectors.toSet());
+    }
+
+    /** Calculate external module names. */
+    static Set<String> findExternalModuleNames(Set<Path> roots) {
+      var declaredModules = new TreeSet<String>();
+      var requiredModules = new TreeSet<String>();
+      var paths = new ArrayList<Path>();
+      for (var root : roots) {
+        try (var stream = Files.walk(root)) {
+          stream.filter(path -> path.endsWith("module-info.java")).forEach(paths::add);
+        } catch (Exception e) {
+          throw new RuntimeException("walking path failed for: " + root, e);
+        }
+      }
+      for (var path : paths) {
+        var info = ModuleInfo.of(path);
+        declaredModules.add(info.name);
+        requiredModules.addAll(info.requires);
+      }
+      var externalModules = new TreeSet<>(requiredModules);
+      externalModules.removeAll(declaredModules);
+      externalModules.removeAll(findSystemModuleNames()); // "java.base", "java.logging", ...
+      return externalModules;
+    }
+
+    final String name;
+    final Set<String> requires;
+
+    private ModuleInfo(String name, Set<String> requires) {
+      this.name = name;
+      this.requires = Set.copyOf(requires);
     }
   }
 }
