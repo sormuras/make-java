@@ -12,6 +12,7 @@ import java.io.StringWriter;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -395,6 +396,140 @@ class Make {
         } finally {
           executor.shutdownNow();
         }
+      }
+    }
+
+    /** Delete selected files and directories from the root directory. */
+    class TreeCopy implements Action {
+
+      final Path source, target;
+      final Predicate<Path> filter;
+
+      TreeCopy(Path source, Path target) {
+        this(source, target, __ -> true);
+      }
+
+      TreeCopy(Path source, Path target, Predicate<Path> filter) {
+        this.source = source;
+        this.target = target;
+        this.filter = filter;
+      }
+
+      @Override
+      public int run(Make make) {
+        // debug("treeCopy(source:`%s`, target:`%s`)%n", source, target);
+        if (!Files.exists(source)) {
+          return 0;
+        }
+        if (!Files.isDirectory(source)) {
+          // throw new IllegalArgumentException("source must be a directory: " + source);
+          return 1;
+        }
+        if (Files.exists(target)) {
+          if (!Files.isDirectory(target)) {
+            // throw new IllegalArgumentException("target must be a directory: " + target);
+            return 2;
+          }
+          try {
+            var relative = source.relativize(target);
+            if (relative.toString().equals("")) {
+              return 0; // same directory
+            }
+            // copy "a/" to "a/b/"...
+            return 3;
+          } catch (IllegalArgumentException e) {
+            // fall through
+          }
+        }
+        try (var stream = Files.walk(source).sorted()) {
+          int counter = 0;
+          var paths = stream.collect(Collectors.toList());
+          for (var path : paths) {
+            var destination = target.resolve(source.relativize(path));
+            if (Files.isDirectory(path)) {
+              Files.createDirectories(destination);
+              continue;
+            }
+            if (filter.test(path)) {
+              Files.copy(path, destination, StandardCopyOption.REPLACE_EXISTING);
+              counter++;
+            }
+          }
+          make.logger.log(DEBUG, "Copied {0} file(s) of {1} elements.", counter, paths.size());
+        } catch (Exception e) {
+          // throw new UncheckedIOException("copyTree failed", e);
+          return 4;
+        }
+        return 0;
+      }
+    }
+
+    /** Delete selected files and directories from the root directory. */
+    class TreeDelete implements Action {
+
+      final Path root;
+      final Predicate<Path> filter;
+
+      TreeDelete(Path root) {
+        this(root, __ -> true);
+      }
+
+      TreeDelete(Path root, Predicate<Path> filter) {
+        this.root = root;
+        this.filter = filter;
+      }
+
+      @Override
+      public int run(Make make) {
+        // trivial case: delete existing single file or empty directory right away
+        try {
+          if (Files.deleteIfExists(root)) {
+            return 0;
+          }
+        } catch (Exception ignored) {
+          // fall-through
+        }
+        // default case: walk the tree...
+        try (var stream = Files.walk(root)) {
+          var selected = stream.filter(filter).sorted((p, q) -> -p.compareTo(q));
+          for (var path : selected.collect(Collectors.toList())) {
+            Files.deleteIfExists(path);
+          }
+        } catch (Exception e) {
+          make.logger.log(ERROR, "Deleting tree failed: " + root, e);
+          return 1;
+        }
+        return 0;
+      }
+    }
+
+    /** Walk directory tree structure. */
+    class TreeWalk implements Action {
+
+      final Path root;
+      final Consumer<String> out;
+
+      TreeWalk(Path root, Consumer<String> out) {
+        this.root = root;
+        this.out = out;
+      }
+
+      @Override
+      public int run(Make make) {
+        if (Files.exists(root)) {
+          out.accept(root.toString());
+        }
+        try (var stream = Files.walk(root).sorted()) {
+          for (var path : stream.collect(Collectors.toList())) {
+            var string = root.relativize(path).toString();
+            var prefix = string.isEmpty() ? "" : File.separator;
+            out.accept("." + prefix + string);
+          }
+        } catch (Exception e) {
+          //throw new UncheckedIOException("dumping tree failed: " + root, e);
+          return 1;
+        }
+        return 0;
       }
     }
   }
