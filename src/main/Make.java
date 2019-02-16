@@ -434,15 +434,12 @@ class Make {
             // throw new IllegalArgumentException("target must be a directory: " + target);
             return 2;
           }
-          try {
-            var relative = source.relativize(target);
-            if (relative.toString().equals("")) {
-              return 0; // same directory
-            }
+          if (target.equals(source)) {
+            return 0;
+          }
+          if (target.startsWith(source)) {
             // copy "a/" to "a/b/"...
             return 3;
-          } catch (IllegalArgumentException e) {
-            // fall through
           }
         }
         try (var stream = Files.walk(source).sorted()) {
