@@ -9,6 +9,6 @@ var downloadJUnit = new Make.Action.Download(Path.of("build"), URI.create(make.v
 var junit = Path.of("build/junit-platform-console-standalone-1.4.0.jar")
 var compileTest = new Make.Action.Tool(new Make.Command("javac").add("-d").add("build/test").add("-cp").add(List.of(Path.of("build/main"), junit)).addAllJavaFiles(List.of(Path.of("src/test"))))
 var copyTestResources = new Make.Action.TreeCopy(Path.of("src/test-resources"), Path.of("build/test"))
-var runTest = new Make.Action.Tool(new Make.Command("java").add("-ea").add("-Dmake.dry-run=true").add("-cp").add(List.of(Path.of("build/test"), Path.of("build/main"), junit)).add("org.junit.platform.console.ConsoleLauncher").add("--scan-class-path"))
+var runTest = new Make.Action.Tool(new Make.Command("java").add("-ea").add("-D" + "make.project.dormant=true").add("-cp").add(List.of(Path.of("build/test"), Path.of("build/main"), junit)).add("org.junit.platform.console.ConsoleLauncher").add("--scan-class-path"))
 
 /exit make.run(compileMain, downloadJUnit, compileTest, copyTestResources, runTest)
