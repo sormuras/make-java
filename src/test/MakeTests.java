@@ -137,7 +137,7 @@ class MakeTests {
   void openAndRunMakeJavaInJShellReturnsZero() throws Exception {
     var builder = new ProcessBuilder("jshell");
     builder.command().add("--execution=local");
-    builder.command().add("-J-Dmake.dry-run=true");
+    builder.command().add("-J-D" + "make.project.dormant=true");
     builder.command().add("-"); // Standard input, without interactive I/O.
     var process = builder.start();
     process.getOutputStream().write("/open src/main/Make.java\n".getBytes());
@@ -154,7 +154,7 @@ class MakeTests {
   void compileAndRunMakeJavaWithJavaReturnsZero() throws Exception {
     var builder = new ProcessBuilder("java");
     builder.command().add("-ea");
-    builder.command().add("-Dmake.dry-run=true");
+    builder.command().add("-D" + "make.project.dormant=true");
     builder.command().add("src/main/Make.java");
     var process = builder.start();
     process.waitFor(9, TimeUnit.SECONDS);

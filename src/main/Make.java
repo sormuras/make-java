@@ -95,7 +95,7 @@ class Make {
   /** Run default actions. */
   int run() {
     if (arguments.isEmpty()) {
-      return run(new Action.Banner(), new Action.Check());
+      return run(new Action.Banner(), new Action.Check(), new Action.Build());
     }
     if (arguments.get(0).equalsIgnoreCase("tool")) {
       if (arguments.size() == 1) {
@@ -137,11 +137,17 @@ class Make {
 
   /** Constants with default values. */
   enum Property {
+    /** Offline mode. */
+    OFFLINE("false"),
+
     /** Cache of binary tools. */
     PATH_CACHE_TOOLS(".make/tools"),
 
     /** Cache of resolved modules. */
     PATH_CACHE_MODULES(".make/modules"),
+
+    /** Prevent project being built. */
+    PROJECT_DORMANT("false"),
 
     /** Name of the project. */
     PROJECT_NAME("project"),
@@ -155,26 +161,77 @@ class Make {
 
     final String key;
     final String defaultValue;
-    final String description;
 
-    Property(String defaultValue, String... description) {
+    Property(String defaultValue) {
       this.key = "make." + name().toLowerCase().replace('_', '.');
       this.defaultValue = defaultValue;
-      this.description = String.join("", description);
     }
   }
 
   /** Make's project object model. */
   class Project {
+    boolean dormant; // non-final for testing purposes
     final String name, version;
+    final Realm main;
 
     Project() {
+      this.dormant = Boolean.parseBoolean(var.get(Property.PROJECT_DORMANT));
       var defaultName =
           Optional.ofNullable(base.getFileName())
               .map(Object::toString)
               .orElse(Property.PROJECT_NAME.defaultValue);
       this.name = var.get(Property.PROJECT_NAME.key, defaultName);
       this.version = var.get(Property.PROJECT_VERSION);
+      this.main = new Realm("main");
+    }
+
+    int build() {
+      if (dormant) {
+        logger.log(INFO, "Dry-mode mode is enabled.");
+        return 0;
+      }
+      try {
+        main.compile();
+      } catch (RuntimeException e) {
+        logger.log(ERROR, "Building project failed.", e);
+        return 1;
+      }
+      return 0;
+    }
+
+    /** Building block, source set, scope, directory, named context: {@code main}, {@code test}. */
+    class Realm {
+      final String name;
+      final Path source;
+      final Path target;
+
+      Realm(String name) {
+        this.name = name;
+        this.source =
+            List.of(based("src", name, "java"), based("src", name), based("src")).stream()
+                .filter(Files::isDirectory)
+                .findFirst()
+                .orElse(base);
+        this.target = based("bin", "compiled", name);
+      }
+
+      void compile() {
+        logger.log(DEBUG, "Compiling " + name);
+        if (Files.notExists(source)) {
+          logger.log(INFO, "Skip compile for {0}! No source path exists: {1}", name, source);
+          return;
+        }
+        var javac = new Command("javac");
+        javac.add("-d").add(target);
+        // TODO javac.add("--module-path").add(modules);
+        javac.add("--module-source-path").add(source);
+        // get("make.project.realms[" + name + "].compile.options", "", ",").forEach(javac::add);
+        // javac.mark(99);
+        javac.addAllJavaFiles(Set.of(source));
+        if (run(new Action.Tool(javac)) != 0) {
+          throw new RuntimeException(name + ".compile() failed!");
+        }
+      }
     }
   }
 
@@ -185,7 +242,7 @@ class Make {
     final Properties properties = load(base.resolve("make.properties"));
 
     /** Offline mode. */
-    boolean offline = Boolean.parseBoolean(get("make.offline", "false"));
+    boolean offline = Boolean.parseBoolean(get(Property.OFFLINE));
 
     /** Standard output line consumer. */
     Consumer<String> out = line -> logger.log(DEBUG, line);
@@ -327,6 +384,15 @@ class Make {
           make.logger.log(DEBUG, " o Size -> {0} bytes", Files.size(target));
           make.logger.log(DEBUG, " o Last Modified -> {0}", urlLastModifiedTime);
         }
+      }
+    }
+
+    /** Build the project. */
+    class Build implements Action {
+
+      @Override
+      public int run(Make make) {
+        return make.project.build();
       }
     }
 

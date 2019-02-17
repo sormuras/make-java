@@ -24,6 +24,7 @@ class DemoTests {
 
       var logger = new CollectingLogger("*");
       var make = new Make(logger, base, List.of());
+      make.project.dormant = false;
       assertEquals(base, make.base);
       assertTrue(Files.isDirectory(make.based("src")));
       assertEquals("greetings", make.project.name);
@@ -35,8 +36,13 @@ class DemoTests {
               "Make.java - " + Make.VERSION,
               "Action Banner succeeded.",
               "Running action Check...",
-              "Action Check succeeded."),
+              "Action Check succeeded.",
+              "Running action Build...",
+              ">> BUILD >>",
+              "Action Build succeeded."),
           logger.getLines());
+      // logger.getLines().forEach(System.out::println);
+      // make.run(new Make.Action.TreeWalk(base, System.out::println));
     }
   }
 }
