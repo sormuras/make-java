@@ -12,10 +12,6 @@ class CollectingLogger implements System.Logger {
     this.name = name;
   }
 
-  void clear() {
-    lines.clear();
-  }
-
   List<String> getLines() {
     return lines;
   }

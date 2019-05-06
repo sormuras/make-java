@@ -1,20 +1,25 @@
+import static java.lang.System.Logger.Level.DEBUG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertLinesMatch;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
-import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.AclEntry;
 import java.nio.file.attribute.AclEntryPermission;
 import java.nio.file.attribute.AclEntryType;
 import java.nio.file.attribute.AclFileAttributeView;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.OS;
@@ -23,166 +28,11 @@ import org.junit.jupiter.api.io.TempDir;
 class ActionTests {
 
   private final CollectingLogger logger = new CollectingLogger("*");
-  private final Make make = new Make(logger, Path.of("."), List.of());
+  private final Make make = new Make(logger, Path.of("."), Path.of("."), true, List.of());
 
-  @Nested
-  class Download {
-    @Test
-    void relativeUriThrows() {
-      var down = new Make.Action.Download(Path.of("."), URI.create("void"));
-      var code = make.run(down);
-      assertEquals(1, code, logger.toString());
-      assertTrue(logger.toString().contains("Download failed: URI is not absolute"));
-    }
-
-    @Test
-    void https(@TempDir Path temp) throws Exception {
-      var uri = URI.create("https://junit.org/junit5/index.html");
-      var down = new Make.Action.Download(temp, uri);
-      var code = make.run(down);
-      assertEquals(0, code, logger.toString());
-      var text = Files.readString(down.destination.resolve("index.html"));
-      assertTrue(text.contains("<title>JUnit 5</title>"));
-    }
-
-    @Test
-    void defaultFileSystem(@TempDir Path tempRoot) throws Exception {
-      var content = List.of("Lorem", "ipsum", "dolor", "sit", "amet");
-      var tempFile = Files.createFile(tempRoot.resolve("source.txt"));
-      Files.write(tempFile, content);
-      var tempPath = Files.createDirectory(tempRoot.resolve("target"));
-      var name = tempFile.getFileName().toString();
-      var actual = tempPath.resolve(name);
-
-      var download = new Make.Action.Download(tempPath, tempFile.toUri());
-
-      // initial download
-      make.run(download);
-      assertTrue(Files.exists(actual));
-      assertLinesMatch(content, Files.readAllLines(actual));
-      assertLinesMatch(
-          List.of(
-              "Running action Download...",
-              "Downloading 1 file(s) to " + tempPath + "...",
-              "Downloading " + tempFile.toUri() + "...",
-              "Transferring " + tempFile.toUri() + "...",
-              "Downloaded source.txt successfully.",
-              " o Size -> .. bytes", // 32 on Windows, 27 on Linux/Mac
-              " o Last Modified .+",
-              "Action Download succeeded."),
-          logger.getLines());
-
-      // reload
-      logger.clear();
-      make.run(download);
-      assertLinesMatch(
-          List.of(
-              "Running action Download...",
-              "Downloading 1 file(s) to " + tempPath + "...",
-              "Downloading " + tempFile.toUri() + "...",
-              "Local file exists. Comparing attributes to remote file...",
-              "Local and remote file attributes seem to match.",
-              "Action Download succeeded."),
-          logger.getLines());
-
-      // offline mode
-      logger.clear();
-      make.var.offline = true;
-      make.run(download);
-      assertLinesMatch(
-          List.of(
-              "Running action Download...",
-              "Downloading 1 file(s) to " + tempPath + "...",
-              "Downloading " + tempFile.toUri() + "...",
-              "Offline mode is active and target already exists.",
-              "Action Download succeeded."),
-          logger.getLines());
-
-      // offline mode with error
-      logger.clear();
-      Files.delete(actual);
-      assertEquals(1, make.run(download));
-      assertLinesMatch(
-          List.of(
-              "Running action Download...",
-              "Downloading 1 file(s) to " + tempPath + "...",
-              "Downloading " + tempFile.toUri() + "...",
-              "Download failed: Target is missing and being offline: " + actual,
-              "Action Download failed with error code: 1"),
-          logger.getLines());
-
-      // online but different file
-      logger.clear();
-      make.var.offline = false;
-      Files.write(actual, List.of("Hello world!"));
-      make.run(new Make.Action.Download(tempPath, tempFile.toUri()));
-      assertLinesMatch(content, Files.readAllLines(actual));
-      assertLinesMatch(
-          List.of(
-              "Running action Download...",
-              "Downloading 1 file(s) to " + tempPath + "...",
-              "Downloading " + tempFile.toUri() + "...",
-              "Local file exists. Comparing attributes to remote file...",
-              "Local file differs from remote -- replacing it...",
-              "Transferring " + tempFile.toUri() + "...",
-              "Downloaded source.txt successfully.",
-              " o Size -> .. bytes", // 32 on Windows, 27 on Linux/Mac
-              " o Last Modified .+",
-              "Action Download succeeded."),
-          logger.getLines());
-    }
-  }
-
-  @Nested
-  class Tool {
-
-    @Test
-    void failsOnNonExistentTool() {
-      var tool = new Make.Action.Tool("does not exist", "really");
-      var code = make.run(tool);
-      var log = logger.toString();
-      assertEquals(1, code, log);
-      assertTrue(log.contains("does not exist"), log);
-      assertTrue(log.contains("Running tool failed:"), log);
-    }
-
-    @Test
-    void standardIO() {
-      var out = new StringBuilder();
-      var tool = new Make.Action.Tool("java", "--version");
-      make.var.out = out::append;
-      var code = make.run(tool);
-      var log = logger.toString();
-      assertEquals(0, code, log);
-      assertTrue(out.toString().contains(Runtime.version().toString()), out.toString());
-    }
-
-    @Test
-    void java() {
-      var tool = new Make.Action.Tool("java", "--version");
-      var code = make.run(tool);
-      var log = logger.toString();
-      assertEquals(0, code, log);
-      assertTrue(log.contains(Runtime.version().toString()), log);
-    }
-
-    @Test
-    void javac() {
-      var tool = new Make.Action.Tool("javac", "--version");
-      var code = make.run(tool);
-      var log = logger.toString();
-      assertEquals(0, code, log);
-      assertTrue(log.contains("javac " + Runtime.version().feature()), log);
-    }
-
-    @Test
-    void javadoc() {
-      var tool = new Make.Action.Tool(new Make.Command("javadoc").add("--version"));
-      var code = make.run(tool);
-      var log = logger.toString();
-      assertEquals(0, code, log);
-      assertTrue(log.contains("javadoc " + Runtime.version().feature()), log);
-    }
+  @Test
+  void runUnsupportedActionReturnsTwo() {
+    assertEquals(2, make.run(new ArrayDeque<>(List.of("unsupported"))));
   }
 
   @Nested
@@ -259,7 +109,7 @@ class ActionTests {
           "./x/file-2",
           "./x/file-3");
 
-      assertEquals(0, make.run(new Make.Action.TreeCopy(root.resolve("x"), root.resolve("a/b/c"))));
+      assertEquals(0, make.run(new TreeCopy(root.resolve("x"), root.resolve("a/b/c"))));
       assertTreeWalkMatches(
           root,
           root.toString(),
@@ -279,7 +129,7 @@ class ActionTests {
           "./x/file-2",
           "./x/file-3");
 
-      assertEquals(0, make.run(new Make.Action.TreeCopy(root.resolve("x"), root.resolve("x/y"))));
+      assertEquals(0, make.run(new TreeCopy(root.resolve("x"), root.resolve("x/y"))));
       assertTreeWalkMatches(
           root,
           root.toString(),
@@ -310,23 +160,23 @@ class ActionTests {
     @Test
     void copyNonExistingDoesNotFail() {
       var root = Path.of("does not exist");
-      var copy = new Make.Action.TreeCopy(root, Path.of("."));
+      var copy = new TreeCopy(root, Path.of("."));
       assertEquals(0, make.run(copy));
     }
 
     @Test
     void copyAndItsPreconditions(@TempDir Path temp) throws Exception {
       var regular = createFiles(temp, 2).get(0);
-      assertEquals(1, make.run(new Make.Action.TreeCopy(regular, Path.of("."))));
+      assertEquals(1, make.run(new TreeCopy(regular, Path.of("."))));
       var directory = Files.createDirectory(temp.resolve("directory"));
       createFiles(directory, 3);
-      assertEquals(2, make.run(new Make.Action.TreeCopy(directory, regular)));
-      assertEquals(0, make.run(new Make.Action.TreeCopy(directory, directory)));
-      assertEquals(3, make.run(new Make.Action.TreeCopy(temp, directory)));
+      assertEquals(2, make.run(new TreeCopy(directory, regular)));
+      assertEquals(0, make.run(new TreeCopy(directory, directory)));
+      assertEquals(3, make.run(new TreeCopy(temp, directory)));
       var forbidden = Files.createDirectory(temp.resolve("forbidden"));
       try {
         denyListing(forbidden, false, false, true);
-        assertEquals(4, make.run(new Make.Action.TreeCopy(directory, forbidden)));
+        assertEquals(4, make.run(new TreeCopy(directory, forbidden)));
       } finally {
         make.run(new Make.Action.TreeDelete(forbidden));
       }
@@ -410,6 +260,68 @@ class ActionTests {
       var actualLines = new ArrayList<String>();
       make.run(new Make.Action.TreeWalk(root, line -> actualLines.add(line.replace(c, '/'))));
       assertLinesMatch(List.of(expected), actualLines);
+    }
+  }
+
+  /** Delete selected files and directories from the root directory. */
+  class TreeCopy implements Make.Action {
+
+    final Path source, target;
+    final Predicate<Path> filter;
+
+    TreeCopy(Path source, Path target) {
+      this(source, target, __ -> true);
+    }
+
+    TreeCopy(Path source, Path target, Predicate<Path> filter) {
+      this.source = source;
+      this.target = target;
+      this.filter = filter;
+    }
+
+    @Override
+    public int run(Make make) {
+      // debug("treeCopy(source:`%s`, target:`%s`)%n", source, target);
+      if (!Files.exists(source)) {
+        return 0;
+      }
+      if (!Files.isDirectory(source)) {
+        // throw new IllegalArgumentException("source must be a directory: " + source);
+        return 1;
+      }
+      if (Files.exists(target)) {
+        if (!Files.isDirectory(target)) {
+          // throw new IllegalArgumentException("target must be a directory: " + target);
+          return 2;
+        }
+        if (target.equals(source)) {
+          return 0;
+        }
+        if (target.startsWith(source)) {
+          // copy "a/" to "a/b/"...
+          return 3;
+        }
+      }
+      try (var stream = Files.walk(source).sorted()) {
+        int counter = 0;
+        var paths = stream.collect(Collectors.toList());
+        for (var path : paths) {
+          var destination = target.resolve(source.relativize(path));
+          if (Files.isDirectory(path)) {
+            Files.createDirectories(destination);
+            continue;
+          }
+          if (filter.test(path)) {
+            Files.copy(path, destination, StandardCopyOption.REPLACE_EXISTING);
+            counter++;
+          }
+        }
+        make.logger.log(DEBUG, "Copied {0} file(s) of {1} elements.", counter, paths.size());
+      } catch (Exception e) {
+        // throw new UncheckedIOException("copyTree failed", e);
+        return 4;
+      }
+      return 0;
     }
   }
 }

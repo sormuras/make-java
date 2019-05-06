@@ -10,39 +10,36 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class DemoTests {
-  private final CollectingLogger logger = new CollectingLogger("*");
-  private final Make make = new Make(logger, Path.of("."), List.of());
 
   @Nested
   class JigsawQuickStart {
 
     @Test
-    void greetings(@TempDir Path workspace) {
-      var demo = Path.of("demo", "jigsaw-quick-start", "greetings");
-      var base = workspace.resolve(demo.getFileName());
-      make.run(new Make.Action.TreeCopy(demo, base));
-
+    void greetings(@TempDir Path work) throws Exception {
       var logger = new CollectingLogger("*");
-      var make = new Make(logger, base, List.of());
-      make.project.dormant = false;
-      assertEquals(base, make.base);
-      assertTrue(Files.isDirectory(make.based("src")));
-      assertEquals("greetings", make.project.name);
-      assertEquals("1.0.0-SNAPSHOT", make.project.version);
-      assertEquals(0, make.run());
+      var demo = Path.of("demo", "jigsaw-quick-start", "greetings");
+      var make = new Make(logger, demo, work, false, List.of("clean", "build"));
+
+      Files.createDirectories(work.resolve("target"));
+
+      assertEquals(demo, make.base);
+      assertEquals(work, make.work);
+      assertTrue(Files.isDirectory(make.base.resolve("src")));
+      // assertEquals("greetings", make.project.name);
+      // assertEquals("1.0.0-SNAPSHOT", make.project.version);
+      assertEquals(0, make.run(), logger.toString());
       assertLinesMatch(
           List.of(
-              "Running action Banner...",
               "Make.java - " + Make.VERSION,
-              "Action Banner succeeded.",
-              "Running action Check...",
-              "Action Check succeeded.",
-              "Running action Build...",
+              "run(action=Check)",
+              "Check succeeded.",
+              "run(action=TreeDelete)",
+              ">> CLEAN >>",
+              "TreeDelete succeeded.",
+              "run(action=Build)",
               ">> BUILD >>",
-              "Action Build succeeded."),
+              "Build succeeded."),
           logger.getLines());
-      // logger.getLines().forEach(System.out::println);
-      // make.run(new Make.Action.TreeWalk(base, System.out::println));
     }
   }
 }
