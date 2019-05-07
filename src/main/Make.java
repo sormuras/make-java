@@ -3,6 +3,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.spi.ToolProvider;
@@ -103,7 +104,7 @@ class Make implements ToolProvider {
     }
   }
 
-  private void tool(Run run, String name, String... args) {
+  void tool(Run run, String name, String... args) {
     logger.log(TRACE, "Running tool named {0} with: {1}", name, List.of(args));
     var tool = ToolProvider.findFirst(name).orElseThrow();
     var code = tool.run(run.out, run.err, args);
@@ -114,26 +115,46 @@ class Make implements ToolProvider {
     throw new Error("Tool '" + name + "' execution failed with error code: " + code);
   }
 
-  private void build(Run run) throws Exception {
+  private void build(Run run) {
     for (var realm : realms) {
       build(run, realm);
     }
   }
 
-  private void build(Run run, Realm realm) throws Exception {
+  private void build(Run run, Realm realm) {
     var root = home.resolve(realm.root);
     if (Files.notExists(root)) {
       return;
     }
-    tool(
-        run,
-        "javac",
-        "-d",
-        work.toString(),
-        "--module-source-path",
-        root.toString(),
-        "--module",
-        String.join(",", realm.modules));
+    var args =
+        new Args()
+            .add("-d", work)
+            .add("--module-source-path", root)
+            .add("--module", String.join(",", realm.modules));
+    tool(run, "javac", args.toStringArray());
+    for (var module : realm.modules) {
+      tool(
+          run,
+          "jar",
+          "--create",
+          "--file",
+          work.resolve(module + ".jar").toString(),
+          "-C",
+          work.resolve(module).toString(),
+          ".");
+    }
+  }
+
+  static class Args extends ArrayList<String> {
+    Args add(Object key, Object value) {
+      add(key.toString());
+      add(value.toString());
+      return this;
+    }
+
+    String[] toStringArray() {
+      return toArray(String[]::new);
+    }
   }
 
   /** Runtime context information. */

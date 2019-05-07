@@ -4,9 +4,13 @@ import static org.junit.jupiter.api.Assertions.assertLinesMatch;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.stream.Collectors;
+
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -49,6 +53,18 @@ class DemoTests {
       assertTrue(Files.isDirectory(exploded));
       assertTrue(Files.isRegularFile(exploded.resolve("module-info.class")));
       assertTrue(Files.isRegularFile(exploded.resolve("com/greetings/Main.class")));
+      var jar = make.work.resolve("com.greetings.jar");
+      assertTrue(Files.isRegularFile(jar), "file not found: " + jar);
+      var string = new StringWriter();
+      var writer = new PrintWriter(string);
+      make.tool(new Make.Run(writer, writer), "jar", "--describe-module", "--file", jar.toString());
+      assertLinesMatch(
+          List.of(
+              "com.greetings jar:file:.+module-info.class",
+              "requires java.base mandated",
+              "contains com.greetings",
+              ""),
+          string.toString().lines().collect(Collectors.toList()));
     }
   }
 }
