@@ -16,29 +16,24 @@ class DemoTests {
 
     @Test
     void greetings(@TempDir Path work) throws Exception {
+      var home = Path.of("demo", "jigsaw-quick-start", "greetings");
+      var project = new Make.Project(home, work, "greetings", "47.11");
+      var builder = new Make.Builder();
       var logger = new CollectingLogger("*");
-      var demo = Path.of("demo", "jigsaw-quick-start", "greetings");
-      var make = new Make(logger, demo, work, false, List.of("clean", "build"));
+      var make = new Make(logger, false, project, builder);
 
-      Files.createDirectories(work.resolve("target"));
-
-      assertEquals(demo, make.base);
-      assertEquals(work, make.work);
-      assertTrue(Files.isDirectory(make.base.resolve("src")));
-      // assertEquals("greetings", make.project.name);
-      // assertEquals("1.0.0-SNAPSHOT", make.project.version);
-      assertEquals(0, make.run(), logger.toString());
+      // assertEquals(demo, make.base);
+      // assertEquals(work, make.work);
+      assertTrue(Files.isDirectory(project.home.resolve("src/com.greetings")));
+      assertEquals("greetings", make.project.name);
+      assertEquals("47.11", make.project.version);
+      assertEquals(0, make.run(System.out, System.err), logger.toString());
       assertLinesMatch(
           List.of(
               "Make.java - " + Make.VERSION,
-              "run(action=Check)",
-              "Check succeeded.",
-              "run(action=TreeDelete)",
-              ">> CLEAN >>",
-              "TreeDelete succeeded.",
-              "run(action=Build)",
-              ">> BUILD >>",
-              "Build succeeded."),
+              "Building greetings 47.11",
+              " home = " + home.toUri(),
+              " work = " + work.toUri()),
           logger.getLines());
     }
   }

@@ -14,7 +14,7 @@ class SanityTests {
     var process = builder.start();
     process.getOutputStream().write("/open src/main/Make.java\n".getBytes());
     process.getOutputStream().write("var make = new Make()\n".getBytes());
-    process.getOutputStream().write("var code = make.run()\n".getBytes());
+    process.getOutputStream().write("var code = make.run(System.out, System.err)\n".getBytes());
     process.getOutputStream().write("/exit code\n".getBytes());
     process.getOutputStream().flush();
     process.waitFor(9, TimeUnit.SECONDS);

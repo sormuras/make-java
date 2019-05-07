@@ -1,3 +1,2 @@
 /open src/main/Make.java
-var make = new Make()
-/exit make.run(System.out, System.err, "javac", "-d", "build/main", "src/main/Make.java")
+/exit java.util.spi.ToolProvider.findFirst("javac").orElseThrow().run(System.out, System.err,"-d", "build/main", "src/main/Make.java")
