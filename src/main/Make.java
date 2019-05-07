@@ -62,20 +62,6 @@ class Make {
     this.arguments = List.copyOf(arguments);
   }
 
-  Path based(Path path) {
-    if (path.isAbsolute()) {
-      return path;
-    }
-    if (base.equals(USER_PATH)) {
-      return path;
-    }
-    return base.resolve(path).normalize();
-  }
-
-  Path based(String first, String... more) {
-    return based(Path.of(first, more));
-  }
-
   /** Run default actions. */
   int run() {
     logger.log(INFO, "Make.java - {0}", Make.VERSION);

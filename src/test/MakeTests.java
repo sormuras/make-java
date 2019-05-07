@@ -43,27 +43,6 @@ class MakeTests {
   }
 
   @Test
-  void basedAbsolutePathReturnsSameInstance() {
-    var absolutePath = Path.of("absolute/path").toAbsolutePath();
-    assertSame(absolutePath, new Make().based(absolutePath));
-  }
-
-  @Test
-  void basedRelativePathReturnsSameInstance() {
-    var relativePath = Path.of("relative/path");
-    assertSame(relativePath, new Make().based(relativePath));
-  }
-
-  @Test
-  void basedRelativePath() {
-    var base = Path.of("other/path");
-    var relativePath = "relative/path";
-    var logger = new CollectingLogger("*");
-    var make = new Make(logger, base, base, true, List.of());
-    assertEquals(base.resolve(relativePath), make.based(relativePath));
-  }
-
-  @Test
   void hasPublicStaticVoidMainWithVarArgs() throws Exception {
     var main = Make.class.getMethod("main", String[].class);
     assertTrue(Modifier.isPublic(main.getModifiers()));
