@@ -41,7 +41,8 @@ class DemoTests {
               " home = " + home.toUri(),
               " work = " + work.toUri(),
               " realms[0] = Realm{name='main', root=src, modules=[com.greetings]}",
-              "Build successful."),
+              ">> BUILD >>",
+              "Build successful after \\d+ ms\\."),
           logger.getLines());
 
       var exploded = make.work.resolve("com.greetings");

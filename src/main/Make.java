@@ -1,11 +1,15 @@
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.spi.ToolProvider;
 
 import static java.lang.System.Logger.Level.ERROR;
 import static java.lang.System.Logger.Level.INFO;
+import static java.lang.System.Logger.Level.TRACE;
 
 /** Modular project model. */
 @SuppressWarnings("WeakerAccess")
@@ -88,9 +92,10 @@ class Make implements ToolProvider {
       logger.log(INFO, "Dry-run ends here.");
       return 0;
     }
+    var run = new Run(out, err);
     try {
-      build();
-      logger.log(INFO, "Build successful.");
+      build(run);
+      logger.log(INFO, "Build successful after {0} ms.", run.toDurationMillis());
       return 0;
     } catch (Exception e) {
       logger.log(ERROR, "Build failed: " + e, e);
@@ -98,31 +103,53 @@ class Make implements ToolProvider {
     }
   }
 
-  private void build() throws Exception {
+  private void tool(Run run, String name, String... args) {
+    logger.log(TRACE, "Running tool named {0} with: {1}", name, List.of(args));
+    var tool = ToolProvider.findFirst(name).orElseThrow();
+    var code = tool.run(run.out, run.err, args);
+    if (code == 0) {
+      logger.log(TRACE, "Tool {0} successfully executed.", name);
+      return;
+    }
+    throw new Error("Tool '" + name + "' execution failed with error code: " + code);
+  }
+
+  private void build(Run run) throws Exception {
     for (var realm : realms) {
-      build(realm);
+      build(run, realm);
     }
   }
 
-  private void build(Realm realm) throws Exception {
+  private void build(Run run, Realm realm) throws Exception {
     var root = home.resolve(realm.root);
     if (Files.notExists(root)) {
       return;
     }
-    var code =
-        ToolProvider.findFirst("javac")
-            .orElseThrow()
-            .run(
-                System.out,
-                System.err,
-                "-d",
-                work.toString(),
-                "--module-source-path",
-                root.toString(),
-                "--module",
-                String.join(",", realm.modules));
-    if (code != 0) {
-      throw new Error("Building realm failed: " + realm);
+    tool(
+        run,
+        "javac",
+        "-d",
+        work.toString(),
+        "--module-source-path",
+        root.toString(),
+        "--module",
+        String.join(",", realm.modules));
+  }
+
+  /** Runtime context information. */
+  static class Run {
+    final PrintWriter out;
+    final PrintWriter err;
+    final Instant start;
+
+    Run(PrintWriter out, PrintWriter err) {
+      this.out = out;
+      this.err = err;
+      this.start = Instant.now();
+    }
+
+    long toDurationMillis() {
+      return TimeUnit.MILLISECONDS.convert(Duration.between(start, Instant.now()));
     }
   }
 
