@@ -17,10 +17,11 @@ class DemoTests {
   class JigsawQuickStart {
 
     @Test
-    void greetings(@TempDir Path work) throws Exception {
+    void greetings(@TempDir Path work) {
       var logger = new CollectingLogger("*");
       var home = Path.of("demo", "jigsaw-quick-start", "greetings");
-      var realms = List.of(new Make.Realm("main", Path.of("src"), List.of("com.greetings")));
+      var main = new Make.Realm("main", Path.of("src"), List.of("com.greetings"));
+      var realms = List.of(main);
       var make = new Make(logger, false, "greetings", "47.11", home, work, realms);
 
       assertSame(logger, make.logger);
@@ -30,9 +31,8 @@ class DemoTests {
       assertEquals(home, make.home);
       assertEquals(work, make.work);
 
-      assertTrue(Files.isDirectory(make.home.resolve("src/com.greetings")));
+      assertTrue(Files.isDirectory(make.home.resolve(main.root).resolve("com.greetings")));
       assertEquals(0, make.run(System.out, System.err), logger.toString());
-      assertTrue(Files.isDirectory(work.resolve("com.greetings")));
       assertLinesMatch(
           List.of(
               "Make.java - " + Make.VERSION,
@@ -43,6 +43,11 @@ class DemoTests {
               " realms[0] = Realm{name='main', root=src, modules=[com.greetings]}",
               "Build successful."),
           logger.getLines());
+
+      var exploded = make.work.resolve("com.greetings");
+      assertTrue(Files.isDirectory(exploded));
+      assertTrue(Files.isRegularFile(exploded.resolve("module-info.class")));
+      assertTrue(Files.isRegularFile(exploded.resolve("com/greetings/Main.class")));
     }
   }
 }
