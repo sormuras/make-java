@@ -30,7 +30,7 @@ class Make {
   public static void main(String... args) {
     var format = "java.util.logging.SimpleFormatter.format";
     if (System.getProperty(format) == null) {
-      System.setProperty(format, "%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS %4$-6s %2$s %5$s%6$s%n");
+      System.setProperty(format, "%1$tH:%1$tM:%1$tS %4$-7s | %2$s %5$s%6$s%n");
     }
     var make = new Make(args);
     var code = make.run();
