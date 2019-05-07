@@ -1,8 +1,10 @@
 import java.io.PrintWriter;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.spi.ToolProvider;
 
+import static java.lang.System.Logger.Level.ERROR;
 import static java.lang.System.Logger.Level.INFO;
 
 /** Modular project model. */
@@ -37,6 +39,7 @@ class Make implements ToolProvider {
   final boolean dryRun;
   final String project, version;
   final Path home, work;
+  final List<Realm> realms;
 
   Make() {
     this(
@@ -45,16 +48,25 @@ class Make implements ToolProvider {
         "project",
         "1.0.0-SNAPSHOT",
         USER_PATH,
-        USER_PATH);
+        USER_PATH,
+        List.of(new Realm("main", Path.of("src", "main"), List.of("?"))));
   }
 
-  Make(System.Logger logger, boolean dryRun, String project, String version, Path home, Path work) {
+  Make(
+      System.Logger logger,
+      boolean dryRun,
+      String project,
+      String version,
+      Path home,
+      Path work,
+      List<Realm> realms) {
     this.logger = logger;
     this.dryRun = dryRun;
     this.project = project;
     this.version = version;
     this.home = home;
     this.work = work;
+    this.realms = realms;
   }
 
   @Override
@@ -69,10 +81,66 @@ class Make implements ToolProvider {
     logger.log(INFO, "Building {0} {1}", project, version);
     logger.log(INFO, " home = {0}", home.toUri());
     logger.log(INFO, " work = {0}", work.toUri());
+    for (int i = 0; i < realms.size(); i++) {
+      logger.log(INFO, " realms[{0}] = {1}", i, realms.get(i));
+    }
     if (dryRun) {
       logger.log(INFO, "Dry-run ends here.");
       return 0;
     }
-    return 0;
+    try {
+      build();
+      logger.log(INFO, "Build successful.");
+      return 0;
+    } catch (Exception e) {
+      logger.log(ERROR, "Build failed: " + e, e);
+      return 1;
+    }
+  }
+
+  private void build() throws Exception {
+    for (var realm : realms) {
+      build(realm);
+    }
+  }
+
+  private void build(Realm realm) throws Exception {
+    var root = home.resolve(realm.root);
+    if (Files.notExists(root)) {
+      return;
+    }
+    var code =
+        ToolProvider.findFirst("javac")
+            .orElseThrow()
+            .run(
+                System.out,
+                System.err,
+                "-d",
+                work.toString(),
+                "--module-source-path",
+                root.toString(),
+                "--module",
+                String.join(",", realm.modules));
+    if (code != 0) {
+      throw new Error("Building realm failed: " + realm);
+    }
+  }
+
+  static class Realm {
+
+    final String name;
+    final Path root;
+    final List<String> modules;
+
+    Realm(String name, Path root, List<String> modules) {
+      this.name = name;
+      this.root = root;
+      this.modules = modules;
+    }
+
+    @Override
+    public String toString() {
+      return "Realm{" + "name='" + name + '\'' + ", root=" + root + ", modules=" + modules + '}';
+    }
   }
 }
