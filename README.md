@@ -1,3 +1,6 @@
+
+[![Build Status](https://travis-ci.com/sormuras/make-java.svg?branch=master)](https://travis-ci.com/sormuras/make-java)
+
 # make.java
 Build modular Java projects
 
