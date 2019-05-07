@@ -31,6 +31,7 @@ class DemoTests {
       assertLinesMatch(
           List.of(
               "Make.java - " + Make.VERSION,
+              "  args = []",
               "Building greetings 47.11",
               " home = " + home.toUri(),
               " work = " + work.toUri()),

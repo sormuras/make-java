@@ -1,5 +1,6 @@
 import java.io.PrintWriter;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Objects;
 import java.util.spi.ToolProvider;
 
@@ -14,12 +15,18 @@ class Make implements ToolProvider {
   /** Convenient short-cut to {@code "user.dir"} as a path. */
   static final Path USER_PATH = Path.of(System.getProperty("user.dir"));
 
+  /** Set "single line" logging format system property, unless already set. */
+  static void installSingleLineSimpleFormatterFormat() {
+    var format = "java.util.logging.SimpleFormatter.format";
+    if (System.getProperty(format) != null) {
+      return;
+    }
+    System.setProperty(format, "| %5$s%6$s%n");
+  }
+
   /** Main entry-point. */
   public static void main(String... args) {
-    var format = "java.util.logging.SimpleFormatter.format";
-    if (System.getProperty(format) == null) {
-      System.setProperty(format, "%1$tH:%1$tM:%1$tS %4$-7s | %2$s %5$s%6$s%n");
-    }
+    installSingleLineSimpleFormatterFormat();
     var code = new Make().run(System.out, System.err, args);
     if (code != 0) {
       throw new Error("Make.java failed with error code: " + code);
@@ -50,6 +57,7 @@ class Make implements ToolProvider {
   @Override
   public int run(PrintWriter out, PrintWriter err, String... args) {
     logger.log(INFO, "{0} - {1}", name(), VERSION);
+    logger.log(INFO, "  args = {0}", List.of(args));
     if (dryRun) {
       logger.log(INFO, "Dry-run ends here.");
       return 0;
