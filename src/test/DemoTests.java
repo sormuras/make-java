@@ -1,5 +1,7 @@
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertLinesMatch;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
@@ -16,17 +18,18 @@ class DemoTests {
 
     @Test
     void greetings(@TempDir Path work) throws Exception {
-      var home = Path.of("demo", "jigsaw-quick-start", "greetings");
-      var project = new Make.Project(home, work, "greetings", "47.11");
-      var builder = new Make.Builder();
       var logger = new CollectingLogger("*");
-      var make = new Make(logger, false, project, builder);
+      var home = Path.of("demo", "jigsaw-quick-start", "greetings");
+      var make = new Make(logger, false, "greetings", "47.11", home, work);
 
-      // assertEquals(demo, make.base);
-      // assertEquals(work, make.work);
-      assertTrue(Files.isDirectory(project.home.resolve("src/com.greetings")));
-      assertEquals("greetings", make.project.name);
-      assertEquals("47.11", make.project.version);
+      assertSame(logger, make.logger);
+      assertFalse(make.dryRun);
+      assertEquals("greetings", make.project);
+      assertEquals("47.11", make.version);
+      assertEquals(home, make.home);
+      assertEquals(work, make.work);
+
+      assertTrue(Files.isDirectory(make.home.resolve("src/com.greetings")));
       assertEquals(0, make.run(System.out, System.err), logger.toString());
       assertLinesMatch(
           List.of(

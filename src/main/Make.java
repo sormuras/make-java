@@ -1,12 +1,12 @@
 import java.io.PrintWriter;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Objects;
 import java.util.spi.ToolProvider;
 
 import static java.lang.System.Logger.Level.INFO;
 
-/** Java build tool main program. */
+/** Modular project model. */
+@SuppressWarnings("WeakerAccess")
 class Make implements ToolProvider {
 
   /** Version is either {@code master} or {@link Runtime.Version#parse(String)}-compatible. */
@@ -35,18 +35,26 @@ class Make implements ToolProvider {
 
   final System.Logger logger;
   final boolean dryRun;
-  final Project project;
-  final Builder builder;
+  final String project, version;
+  final Path home, work;
 
   Make() {
-    this(System.getLogger("Make.java"), Boolean.getBoolean("ry-run"), new Project(), new Builder());
+    this(
+        System.getLogger("Make.java"),
+        Boolean.getBoolean("ry-run"),
+        "project",
+        "1.0.0-SNAPSHOT",
+        USER_PATH,
+        USER_PATH);
   }
 
-  Make(System.Logger logger, boolean dryRun, Project project, Builder builder) {
-    this.logger = Objects.requireNonNull(logger);
+  Make(System.Logger logger, boolean dryRun, String project, String version, Path home, Path work) {
+    this.logger = logger;
     this.dryRun = dryRun;
     this.project = project;
-    this.builder = builder;
+    this.version = version;
+    this.home = home;
+    this.work = work;
   }
 
   @Override
@@ -58,40 +66,13 @@ class Make implements ToolProvider {
   public int run(PrintWriter out, PrintWriter err, String... args) {
     logger.log(INFO, "{0} - {1}", name(), VERSION);
     logger.log(INFO, "  args = {0}", List.of(args));
+    logger.log(INFO, "Building {0} {1}", project, version);
+    logger.log(INFO, " home = {0}", home.toUri());
+    logger.log(INFO, " work = {0}", work.toUri());
     if (dryRun) {
       logger.log(INFO, "Dry-run ends here.");
       return 0;
     }
-    return builder.build(this, project);
-  }
-
-  /** Modular project model. */
-  static class Project {
-    final Path home, work;
-    final String name, version;
-
-    Project() {
-      this(USER_PATH, USER_PATH);
-    }
-
-    Project(Path source, Path target) {
-      this(source, target, "project", "1.0.0-SNAPSHOT");
-    }
-
-    Project(Path home, Path work, String name, String version) {
-      this.home = home;
-      this.work = work;
-      this.name = name;
-      this.version = version;
-    }
-  }
-
-  static class Builder {
-    int build(Make make, Project project) {
-      make.logger.log(INFO, "Building {0} {1}", project.name, project.version);
-      make.logger.log(INFO, " home = {0}", project.home.toUri());
-      make.logger.log(INFO, " work = {0}", project.work.toUri());
-      return 0;
-    }
+    return 0;
   }
 }
