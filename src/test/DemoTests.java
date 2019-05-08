@@ -51,13 +51,13 @@ class DemoTests {
       assertTrue(Files.isDirectory(exploded));
       assertTrue(Files.isRegularFile(exploded.resolve("module-info.class")));
       assertTrue(Files.isRegularFile(exploded.resolve("com/greetings/Main.class")));
-      var jar = make.work.packagedModules.resolve("com.greetings.jar");
+      var jar = make.work.packagedModules.resolve("com.greetings@47.11.jar");
       assertTrue(Files.isRegularFile(jar), "file not found: " + jar);
       var writer = new StringWriter();
       make.tool(new Make.Run(writer), "jar", "--describe-module", "--file", jar.toString());
       assertLinesMatch(
           List.of(
-              "com.greetings jar:file:.+module-info.class",
+              "com.greetings@47.11 jar:file:.+module-info.class",
               "requires java.base mandated",
               "contains com.greetings",
               ""),

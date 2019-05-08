@@ -146,6 +146,7 @@ class Make implements ToolProvider {
     var args =
         new Args()
             .with("-d", work.compiledModules)
+            .with("--module-version", version)
             .with("--module-source-path", moduleSourcePath)
             .with("--module", String.join(",", modules));
     tool(run, "javac", args.toStringArray());
@@ -154,7 +155,7 @@ class Make implements ToolProvider {
       args =
           new Args()
               .with("--create")
-              .with("--file", work.packagedModules.resolve(module + ".jar"))
+              .with("--file", work.packagedModules.resolve(module + "@" + version + ".jar"))
               .with("-C", work.compiledModules.resolve(module))
               .with(".");
       tool(run, "jar", args.toStringArray());
