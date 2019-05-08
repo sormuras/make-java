@@ -254,11 +254,12 @@ class Make implements ToolProvider {
       }
     }
 
-    /** Return list of child directory names directly present in {@code root} path. */
+    /** Return sorted list of child directory names directly present in {@code root} path. */
     static List<String> listDirectoryNames(Path root) {
       return listDirectories(root).stream()
           .map(root::relativize)
           .map(Path::toString)
+          .sorted()
           .collect(Collectors.toList());
     }
   }
