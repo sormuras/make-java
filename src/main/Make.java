@@ -177,6 +177,10 @@ class Make implements ToolProvider {
     /** Time instant recorded on creation of this instance. */
     final Instant start;
 
+    Run(Writer writer) {
+      this(new PrintWriter(writer), new PrintWriter(writer));
+    }
+
     Run(PrintWriter out, PrintWriter err) {
       this.out = out;
       this.err = err;
