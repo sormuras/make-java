@@ -1,4 +1,5 @@
 import java.io.PrintWriter;
+import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -12,7 +13,7 @@ import static java.lang.System.Logger.Level.ERROR;
 import static java.lang.System.Logger.Level.INFO;
 import static java.lang.System.Logger.Level.TRACE;
 
-/** Modular project model. */
+/** Modular project model and maker. */
 @SuppressWarnings("WeakerAccess")
 class Make implements ToolProvider {
 
@@ -22,7 +23,7 @@ class Make implements ToolProvider {
   /** Convenient short-cut to {@code "user.dir"} as a path. */
   static final Path USER_PATH = Path.of(System.getProperty("user.dir"));
 
-  /** Set "single line" logging format system property, unless already set. */
+  /** Set "single line" logging format system property, unless the property is already set. */
   static void installSingleLineSimpleFormatterFormat() {
     var format = "java.util.logging.SimpleFormatter.format";
     if (System.getProperty(format) != null) {
@@ -40,10 +41,19 @@ class Make implements ToolProvider {
     }
   }
 
+  /** Logger instance. */
   final System.Logger logger;
+  /** Dry-run flag. */
   final boolean dryRun;
-  final String project, version;
-  final Path home, work;
+  /** Name of the project. */
+  final String project;
+  /** Version of the project. */
+  final String version;
+  /** Root path of this project. */
+  final Path home;
+  /** Destination root path of this project. */
+  final Path work;
+  /** Realms of this project. */
   final List<Realm> realms;
 
   Make() {
@@ -145,6 +155,7 @@ class Make implements ToolProvider {
     }
   }
 
+  /** Command-line program argument list builder. */
   static class Args extends ArrayList<String> {
     Args add(Object key, Object value) {
       add(key.toString());
@@ -159,8 +170,11 @@ class Make implements ToolProvider {
 
   /** Runtime context information. */
   static class Run {
+    /** Stream to which "expected" output should be written. */
     final PrintWriter out;
+    /** Stream to which any error messages should be written. */
     final PrintWriter err;
+    /** Time instant recorded on creation of this instance. */
     final Instant start;
 
     Run(PrintWriter out, PrintWriter err) {
@@ -174,10 +188,13 @@ class Make implements ToolProvider {
     }
   }
 
+  /** Building block, source set, scope, directory, named context: {@code main}, {@code test}. */
   static class Realm {
-
+    /** Logical name of the realm. */
     final String name;
+    /** Root source path. */
     final Path root;
+    /** Names of modules in this realm. */
     final List<String> modules;
 
     Realm(String name, Path root, List<String> modules) {
