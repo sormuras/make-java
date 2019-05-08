@@ -1,0 +1,215 @@
+  /** Project model. */
+  final class Project {
+
+    /** Well-known project folders. */
+    class Folder {
+      /** Root destination directory for all binary assets. */
+      final Path target = based("target", "bach");
+
+      final Path compiled = target.resolve("compiled");
+      final Path compiledMulti = compiled.resolve("multi-release");
+      final Path compiledPlain = compiled.resolve("plain-modules");
+      /** Contains all modular jars generated for this project. */
+      final Path jars = target.resolve("jars");
+    }
+
+    /** Realm. */
+    class Realm {
+      final String name;
+      final Path source;
+
+      Realm(String name, Path source) {
+        this.name = name;
+        this.source = source;
+      }
+    }
+
+    /** Folders. */
+    final Folder folder;
+
+    /** Main realm. */
+    final Realm main;
+
+    /** Version of the project. */
+    final String version;
+
+    /** Initialize project properties with default values. */
+    Project() {
+      this.folder = new Folder();
+      this.main = new Realm("main", findFirst("src/main/java", "src/main", "main", "src"));
+      this.version = get(Property.PROJECT_VERSION);
+    }
+
+    /** Rebase given path as needed. */
+    Path based(Path path) {
+      if (path.isAbsolute()) {
+        return path;
+      }
+      if (base.toAbsolutePath().equals(USER_PATH)) {
+        return path;
+      }
+      return base.resolve(path).normalize();
+    }
+
+    /** Instantiate and rebase path as needed. */
+    Path based(String first, String... more) {
+      return based(Path.of(first, more));
+    }
+
+    Path findFirst(String... paths) {
+      return Arrays.stream(paths)
+          .map(Project.this::based)
+          .filter(Files::isDirectory)
+          .findFirst()
+          .orElse(based(paths[0]));
+    }
+  }
+
+  class Builder {
+    void build() throws Exception {
+      build(project.main);
+    }
+
+    void build(Project.Realm realm) throws Exception {
+      var modules = Bach.Util.findDirectoryNames(realm.source);
+      var plains = new ArrayList<>(modules);
+      log.debug("Building modules: " + modules);
+      // compile multi-release modules
+      for (var module : modules) {
+        if (Files.notExists(realm.source.resolve(module).resolve("module-info.java"))) {
+          log.trace("multi-release module: " + module);
+          var base = compileMultiReleaseModule(realm, module);
+          packageMultiReleaseModule(module, base);
+          plains.remove(module);
+        }
+      }
+      // compile "plain" modules
+      log.debug("plain module(s) = " + plains);
+      compileModules(realm, plains);
+      for (var module : plains) {
+        packageModule(module);
+      }
+    }
+
+    void compileModules(Project.Realm realm, List<String> modules) {
+      var javac = new ArrayList<>();
+      if (debug) {
+        javac.add("-verbose");
+      }
+      javac.add("-d");
+      javac.add(project.folder.compiledPlain);
+      javac.add("--module-version");
+      javac.add(project.version);
+      javac.add("--module-path");
+      javac.add(project.folder.jars); // include mr-jar'ed modules
+      javac.add("--module-source-path");
+      javac.add(realm.source);
+      if (Runtime.version().feature() >= 12) {
+        //  --module <module>(,<module>)*, -m <module>(,<module>)*
+        //        Compile only the specified module(s), check timestamps
+        javac.add("--module");
+        javac.add(String.join(",", modules));
+        run(0, "javac", javac.toArray(Object[]::new));
+        return;
+      }
+      // --module <module-name>, -m <module-name>
+      //    Compile only the specified module, check timestamps
+      for (var module : modules) {
+        var namedModule = new ArrayList<>(javac);
+        namedModule.add("--module");
+        namedModule.add(module);
+        run(0, "javac", namedModule.toArray(Object[]::new));
+      }
+    }
+
+    void packageModule(String module) throws Exception {
+      Files.createDirectories(project.folder.jars);
+      var jar = new ArrayList<>();
+      if (debug) {
+        jar.add("--verbose");
+      }
+      jar.add("--create");
+      jar.add("--file");
+      jar.add(project.folder.jars.resolve(module + '@' + VERSION + ".jar"));
+      jar.add("-C");
+      jar.add(project.folder.compiledPlain.resolve(module));
+      jar.add(".");
+      run(0, "jar", jar.toArray(Object[]::new));
+    }
+
+    int compileMultiReleaseModule(Project.Realm realm, String module) throws Exception {
+      var source = realm.source.resolve(module);
+      if (Files.notExists(source)) {
+        throw new IllegalStateException("Module directory doesn't exist: " + source);
+      }
+      int base = 8;
+      for (var release = base; release <= Runtime.version().feature(); release++) {
+        compileMultiReleaseModule(realm, module, base, release);
+      }
+      return base;
+    }
+
+    void compileMultiReleaseModule(Project.Realm realm, String module, int base, int release)
+        throws Exception {
+      var javaR = "java-" + release;
+      var source = realm.source.resolve(module).resolve(javaR);
+      if (Files.notExists(source)) {
+        return;
+      }
+      var destination = project.folder.compiledMulti.resolve(javaR);
+      var javac = new ArrayList<>();
+      javac.add("--release");
+      javac.add(release);
+      if (release < 9) {
+        javac.add("-d");
+        javac.add(destination.resolve(module));
+        // TODO "-cp" ...
+        javac.addAll(Util.findJavaFiles(source));
+      } else {
+        javac.add("-d");
+        javac.add(destination);
+        javac.add("--module-version");
+        javac.add(project.version);
+        // TODO "--module-path"
+        javac.add("--module-source-path");
+        var sources = List.of(realm.source.toString() + "/*/" + javaR, realm.source.toString());
+        javac.add(String.join(File.pathSeparator, sources));
+        javac.add("--patch-module");
+        javac.add(
+            module + '=' + project.folder.compiledMulti.resolve("java-" + base).resolve(module));
+        javac.add("--module");
+        javac.add(module);
+      }
+      run(0, "javac", javac.toArray(Object[]::new));
+    }
+
+    void packageMultiReleaseModule(String module, int base) throws Exception {
+      Files.createDirectories(project.folder.jars);
+      var jar = new ArrayList<>();
+      if (debug) {
+        jar.add("--verbose");
+      }
+      jar.add("--create");
+      jar.add("--file");
+      jar.add(project.folder.jars.resolve(module + '@' + VERSION + ".jar"));
+
+      // "base" classes
+      jar.add("-C");
+      jar.add(project.folder.compiledMulti.resolve("java-" + base).resolve(module));
+      jar.add(".");
+
+      // "base" + 1 .. N classes
+      for (var release = base + 1; release <= Runtime.version().feature(); release++) {
+        var path = project.folder.compiledMulti.resolve("java-" + release).resolve(module);
+        if (Files.notExists(path)) {
+          continue;
+        }
+        jar.add("--release");
+        jar.add(release);
+        jar.add("-C");
+        jar.add(path);
+        jar.add(".");
+      }
+      run(0, "jar", jar.toArray(Object[]::new));
+    }
+  }
