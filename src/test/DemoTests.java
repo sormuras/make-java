@@ -31,7 +31,7 @@ class DemoTests {
       assertEquals("greetings", make.project);
       assertEquals("47.11", make.version);
       assertEquals(home, make.home);
-      assertEquals(work, make.work);
+      assertEquals(work, make.work.base);
 
       assertTrue(Files.isDirectory(make.home.resolve(main.source).resolve("com.greetings")));
       assertEquals(0, make.run(System.out, System.err), logger.toString());
@@ -47,11 +47,11 @@ class DemoTests {
               "Build successful after \\d+ ms\\."),
           logger.getLines());
 
-      var exploded = make.work.resolve("com.greetings");
+      var exploded = make.work.compiledModules.resolve("com.greetings");
       assertTrue(Files.isDirectory(exploded));
       assertTrue(Files.isRegularFile(exploded.resolve("module-info.class")));
       assertTrue(Files.isRegularFile(exploded.resolve("com/greetings/Main.class")));
-      var jar = make.work.resolve("com.greetings.jar");
+      var jar = make.work.packagedModules.resolve("com.greetings.jar");
       assertTrue(Files.isRegularFile(jar), "file not found: " + jar);
       var writer = new StringWriter();
       make.tool(new Make.Run(writer), "jar", "--describe-module", "--file", jar.toString());

@@ -53,8 +53,8 @@ class Make implements ToolProvider {
   final String version;
   /** Root path of this project. */
   final Path home;
-  /** Destination root path of this project. */
-  final Path work;
+  /** Set of well-known output directories and files. */
+  final Work work;
   /** Realms of this project. */
   final List<Realm> realms;
 
@@ -65,7 +65,7 @@ class Make implements ToolProvider {
         "project",
         "1.0.0-SNAPSHOT",
         USER_PATH,
-        USER_PATH,
+        USER_PATH.resolve("work"),
         List.of(new Realm("main", Path.of("src", "main"))));
   }
 
@@ -82,7 +82,7 @@ class Make implements ToolProvider {
     this.project = project;
     this.version = version;
     this.home = home;
-    this.work = work;
+    this.work = new Work(work);
     this.realms = realms;
   }
 
@@ -97,7 +97,7 @@ class Make implements ToolProvider {
     logger.log(INFO, "  args = {0}", List.of(args));
     logger.log(INFO, "Building {0} {1}", project, version);
     logger.log(INFO, "  home = {0}", home.toUri());
-    logger.log(INFO, "  work = {0}", work.toUri());
+    logger.log(INFO, "  work = {0}", work.base.toUri());
     for (int i = 0; i < realms.size(); i++) {
       logger.log(INFO, "  realms[{0}] = {1}", i, realms.get(i));
     }
@@ -127,13 +127,13 @@ class Make implements ToolProvider {
     throw new Error("Tool " + name + " execution failed with error code: " + code);
   }
 
-  private void build(Run run) {
+  private void build(Run run) throws Exception {
     for (var realm : realms) {
       build(run, realm);
     }
   }
 
-  private void build(Run run, Realm realm) {
+  private void build(Run run, Realm realm) throws Exception {
     var moduleSourcePath = home.resolve(realm.source);
     if (Files.notExists(moduleSourcePath)) {
       logger.log(WARNING, "Source path of {0} realm not found: {1}", realm.name, moduleSourcePath);
@@ -145,20 +145,36 @@ class Make implements ToolProvider {
     }
     var args =
         new Args()
-            .add("-d", work)
+            .add("-d", work.compiledModules)
             .add("--module-source-path", moduleSourcePath)
             .add("--module", String.join(",", modules));
     tool(run, "javac", args.toStringArray());
+    Files.createDirectories(work.packagedModules);
     for (var module : modules) {
       tool(
           run,
           "jar",
           "--create",
           "--file",
-          work.resolve(module + ".jar").toString(),
+          work.packagedModules.resolve(module + ".jar").toString(),
           "-C",
-          work.resolve(module).toString(),
+          work.compiledModules.resolve(module).toString(),
           ".");
+    }
+  }
+
+  /** Workspace paths and other assets. */
+  class Work {
+    final Path base;
+    final Path compiledBase;
+    final Path compiledModules;
+    final Path packagedModules;
+
+    Work(Path base) {
+      this.base = base;
+      compiledBase = base.resolve("compiled");
+      compiledModules = compiledBase.resolve("modules");
+      packagedModules = base.resolve("modules");
     }
   }
 
