@@ -145,21 +145,19 @@ class Make implements ToolProvider {
     }
     var args =
         new Args()
-            .add("-d", work.compiledModules)
-            .add("--module-source-path", moduleSourcePath)
-            .add("--module", String.join(",", modules));
+            .with("-d", work.compiledModules)
+            .with("--module-source-path", moduleSourcePath)
+            .with("--module", String.join(",", modules));
     tool(run, "javac", args.toStringArray());
     Files.createDirectories(work.packagedModules);
     for (var module : modules) {
-      tool(
-          run,
-          "jar",
-          "--create",
-          "--file",
-          work.packagedModules.resolve(module + ".jar").toString(),
-          "-C",
-          work.compiledModules.resolve(module).toString(),
-          ".");
+      args =
+          new Args()
+              .with("--create")
+              .with("--file", work.packagedModules.resolve(module + ".jar"))
+              .with("-C", work.compiledModules.resolve(module))
+              .with(".");
+      tool(run, "jar", args.toStringArray());
     }
   }
 
@@ -180,10 +178,13 @@ class Make implements ToolProvider {
 
   /** Command-line program argument list builder. */
   static class Args extends ArrayList<String> {
-    Args add(Object key, Object value) {
-      add(key.toString());
+    Args with(Object value) {
       add(value.toString());
       return this;
+    }
+
+    Args with(Object key, Object value) {
+      return with(key).with(value);
     }
 
     String[] toStringArray() {
