@@ -23,9 +23,8 @@ class DemoTests {
     void greetings(@TempDir Path work) {
       var logger = new CollectingLogger("*");
       var home = Path.of("demo", "jigsaw-quick-start", "greetings");
-      var main = new Make.Realm("main", Path.of("src"), List.of("com.greetings"));
-      var realms = List.of(main);
-      var make = new Make(logger, false, "greetings", "47.11", home, work, realms);
+      var main = new Make.Realm("main", Path.of("src"));
+      var make = new Make(logger, false, "greetings", "47.11", home, work, List.of(main));
 
       assertSame(logger, make.logger);
       assertFalse(make.dryRun);
@@ -34,16 +33,16 @@ class DemoTests {
       assertEquals(home, make.home);
       assertEquals(work, make.work);
 
-      assertTrue(Files.isDirectory(make.home.resolve(main.root).resolve("com.greetings")));
+      assertTrue(Files.isDirectory(make.home.resolve(main.source).resolve("com.greetings")));
       assertEquals(0, make.run(System.out, System.err), logger.toString());
       assertLinesMatch(
           List.of(
               "Make.java - " + Make.VERSION,
               "  args = []",
               "Building greetings 47.11",
-              " home = " + home.toUri(),
-              " work = " + work.toUri(),
-              " realms[0] = Realm{name='main', root=src, modules=[com.greetings]}",
+              "  home = " + home.toUri(),
+              "  work = " + work.toUri(),
+              "  realms[0] = Realm{name=main, source=src}",
               ">> BUILD >>",
               "Build successful after \\d+ ms\\."),
           logger.getLines());

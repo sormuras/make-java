@@ -8,10 +8,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.spi.ToolProvider;
+import java.util.stream.Collectors;
 
 import static java.lang.System.Logger.Level.ERROR;
 import static java.lang.System.Logger.Level.INFO;
 import static java.lang.System.Logger.Level.TRACE;
+import static java.lang.System.Logger.Level.WARNING;
 
 /** Modular project model and maker. */
 @SuppressWarnings("WeakerAccess")
@@ -64,7 +66,7 @@ class Make implements ToolProvider {
         "1.0.0-SNAPSHOT",
         USER_PATH,
         USER_PATH,
-        List.of(new Realm("main", Path.of("src", "main"), List.of("?"))));
+        List.of(new Realm("main", Path.of("src", "main"))));
   }
 
   Make(
@@ -94,10 +96,10 @@ class Make implements ToolProvider {
     logger.log(INFO, "{0} - {1}", name(), VERSION);
     logger.log(INFO, "  args = {0}", List.of(args));
     logger.log(INFO, "Building {0} {1}", project, version);
-    logger.log(INFO, " home = {0}", home.toUri());
-    logger.log(INFO, " work = {0}", work.toUri());
+    logger.log(INFO, "  home = {0}", home.toUri());
+    logger.log(INFO, "  work = {0}", work.toUri());
     for (int i = 0; i < realms.size(); i++) {
-      logger.log(INFO, " realms[{0}] = {1}", i, realms.get(i));
+      logger.log(INFO, "  realms[{0}] = {1}", i, realms.get(i));
     }
     if (dryRun) {
       logger.log(INFO, "Dry-run ends here.");
@@ -122,7 +124,7 @@ class Make implements ToolProvider {
       logger.log(TRACE, "Tool {0} successfully executed.", name);
       return;
     }
-    throw new Error("Tool '" + name + "' execution failed with error code: " + code);
+    throw new Error("Tool " + name + " execution failed with error code: " + code);
   }
 
   private void build(Run run) {
@@ -132,17 +134,22 @@ class Make implements ToolProvider {
   }
 
   private void build(Run run, Realm realm) {
-    var root = home.resolve(realm.root);
-    if (Files.notExists(root)) {
+    var moduleSourcePath = home.resolve(realm.source);
+    if (Files.notExists(moduleSourcePath)) {
+      logger.log(WARNING, "Source path of {0} realm not found: {1}", realm.name, moduleSourcePath);
       return;
+    }
+    var modules = Util.listDirectoryNames(moduleSourcePath);
+    if (modules.isEmpty()) {
+      throw new Error("No module directories found in source path: " + moduleSourcePath);
     }
     var args =
         new Args()
             .add("-d", work)
-            .add("--module-source-path", root)
-            .add("--module", String.join(",", realm.modules));
+            .add("--module-source-path", moduleSourcePath)
+            .add("--module", String.join(",", modules));
     tool(run, "javac", args.toStringArray());
-    for (var module : realm.modules) {
+    for (var module : modules) {
       tool(
           run,
           "jar",
@@ -196,20 +203,45 @@ class Make implements ToolProvider {
   static class Realm {
     /** Logical name of the realm. */
     final String name;
-    /** Root source path. */
-    final Path root;
-    /** Names of modules in this realm. */
-    final List<String> modules;
+    /** Module source path. */
+    final Path source;
 
-    Realm(String name, Path root, List<String> modules) {
+    Realm(String name, Path source) {
       this.name = name;
-      this.root = root;
-      this.modules = modules;
+      this.source = source;
     }
 
     @Override
     public String toString() {
-      return "Realm{" + "name='" + name + '\'' + ", root=" + root + ", modules=" + modules + '}';
+      return "Realm{" + "name=" + name + ", source=" + source + '}';
+    }
+  }
+
+  /** Static helpers. */
+  static final class Util {
+    /** No instance permitted. */
+    Util() {
+      throw new Error();
+    }
+
+    /** Return list of child directories directly present in {@code root} path. */
+    static List<Path> listDirectories(Path root) {
+      if (Files.notExists(root)) {
+        return List.of();
+      }
+      try (var paths = Files.find(root, 1, (path, attr) -> Files.isDirectory(path))) {
+        return paths.filter(path -> !root.equals(path)).collect(Collectors.toList());
+      } catch (Exception e) {
+        throw new Error("findDirectories failed for root: " + root, e);
+      }
+    }
+
+    /** Return list of child directory names directly present in {@code root} path. */
+    static List<String> listDirectoryNames(Path root) {
+      return listDirectories(root).stream()
+          .map(root::relativize)
+          .map(Path::toString)
+          .collect(Collectors.toList());
     }
   }
 }
