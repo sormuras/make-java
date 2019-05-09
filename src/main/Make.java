@@ -182,13 +182,21 @@ class Make implements ToolProvider {
 
   /** Command-line program argument list builder. */
   static class Args extends ArrayList<String> {
-    Args with(Object value) {
-      add(value.toString());
+    /** Add single argument by invoking {@link Object#toString()} on the given argument. */
+    Args with(Object argument) {
+      add(argument.toString());
       return this;
     }
 
+    /** Add two arguments by invoking {@link #with(Object)} for the key and value elements. */
     Args with(Object key, Object value) {
       return with(key).with(value);
+    }
+
+    /** Add all arguments by invoking {@link #with(Object)} for each element. */
+    Args withEach(Iterable<?> arguments) {
+      arguments.forEach(this::with);
+      return this;
     }
 
     String[] toStringArray() {
