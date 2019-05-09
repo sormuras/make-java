@@ -5,8 +5,10 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.spi.ToolProvider;
 import java.util.stream.Collectors;
 
@@ -242,6 +244,17 @@ class Make implements ToolProvider {
       throw new Error();
     }
 
+    /** Test supplied path for pointing to a regular Java source compilation unit file. */
+    static boolean isJavaFile(Path path) {
+      if (Files.isRegularFile(path)) {
+        var name = path.getFileName().toString();
+        if (name.endsWith(".java")) {
+          return name.indexOf('.') == name.length() - 5; // single dot in filename
+        }
+      }
+      return false;
+    }
+
     /** Return list of child directories directly present in {@code root} path. */
     static List<Path> listDirectories(Path root) {
       if (Files.notExists(root)) {
@@ -261,6 +274,24 @@ class Make implements ToolProvider {
           .map(Path::toString)
           .sorted()
           .collect(Collectors.toList());
+    }
+
+    /** List all regular files matching the given filter. */
+    static List<Path> listFiles(Collection<Path> roots, Predicate<Path> filter) {
+      var files = new ArrayList<Path>();
+      for (var root : roots) {
+        try (var stream = Files.walk(root)) {
+          stream.filter(Files::isRegularFile).filter(filter).forEach(files::add);
+        } catch (Exception e) {
+          throw new Error("Finding files failed for: " + roots, e);
+        }
+      }
+      return files;
+    }
+
+    /** List all regular Java files in given root directory. */
+    static List<Path> listJavaFiles(Path root) {
+      return listFiles(List.of(root), Util::isJavaFile);
     }
   }
 }
