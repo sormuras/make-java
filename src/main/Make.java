@@ -108,7 +108,17 @@ class Make implements ToolProvider {
       for (var realm : realms) {
         build(run, realm);
       }
-      run.log(INFO, "Modular jars: " + Util.listFiles(List.of(work.packagedModules), __ -> true));
+      var jars = Util.listFiles(List.of(work.packagedModules), Util::isJarFile);
+      run.log(INFO, "Modular jars: " + jars);
+      if (debug) {
+        var jdeps =
+            new Make.Args()
+                .with("--module-path", work.packagedModules)
+                .with("--add-modules", "ALL-MODULE-PATH")
+                .with("--multi-release", "base")
+                .with("-summary");
+        run.tool("jdeps", jdeps.toStringArray());
+      }
       run.log(INFO, "Build successful after %d ms.", run.toDurationMillis());
       return 0;
     } catch (Throwable t) {
@@ -373,6 +383,15 @@ class Make implements ToolProvider {
         if (name.endsWith(".java")) {
           return name.indexOf('.') == name.length() - 5; // single dot in filename
         }
+      }
+      return false;
+    }
+
+    /** Test supplied path for pointing to a regular Java archive file. */
+    static boolean isJarFile(Path path) {
+      if (Files.isRegularFile(path)) {
+        var name = path.getFileName().toString();
+        return name.endsWith(".java");
       }
       return false;
     }

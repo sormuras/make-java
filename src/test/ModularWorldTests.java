@@ -46,20 +46,11 @@ class ModularWorldTests {
     var debug = DebugRun.newInstance();
     var make = new Make(true, false, project, version, home, work, List.of(main));
     assertEquals(0, make.run(debug), debug + "\n" + String.join("\n", treeWalk(home)));
-    var jdeps =
-        new Make.Args()
-            .with("--module-path", make.work.packagedModules.toString())
-            .with("--add-modules", "ALL-MODULE-PATH")
-            .with("--multi-release", "base")
-            .with("-summary");
-    debug.tool("jdeps", jdeps.toStringArray());
-    var expectedLines =
-        new ArrayList<>(
-            List.of(
-                "Make.java - " + Make.VERSION, ">> BUILD >>", "Build successful after \\d+ ms\\."));
+    var expectedLines = new ArrayList<>(List.of("Make.java - " + Make.VERSION, ">> BUILD >>"));
     expectedLines.add("Running tool 'jdeps' with.+");
     expectedLines.addAll(Files.readAllLines(home.resolve("jdeps-summary.txt")));
     expectedLines.add("Tool 'jdeps' successfully executed.");
+    expectedLines.add("Build successful after \\d+ ms\\.");
     assertLinesMatch(expectedLines, debug.lines());
   }
 
