@@ -112,8 +112,8 @@ class Make implements ToolProvider {
       build(run);
       logger.log(INFO, "Build successful after {0} ms.", run.toDurationMillis());
       return 0;
-    } catch (Exception e) {
-      logger.log(ERROR, "Build failed: " + e, e);
+    } catch (Throwable t) {
+      logger.log(ERROR, "Build failed: " + t, t);
       return 1;
     }
   }
