@@ -159,7 +159,7 @@ class Make implements ToolProvider {
               .with("--module-version", version)
               .with("--module-source-path", moduleSourcePath)
               .with("--module", String.join(",", regularModules));
-      tool(run, "javac", args.toStringArray());
+      run.tool("javac", args.toStringArray());
       for (var module : regularModules) {
         var file = work.packagedModules.resolve(module + "@" + version + ".jar");
         args =
@@ -168,7 +168,7 @@ class Make implements ToolProvider {
                 .with("--file", file)
                 .with("-C", work.compiledModules.resolve(module))
                 .with(".");
-        tool(run, "jar", args.toStringArray());
+        run.tool("jar", args.toStringArray());
       }
     }
   }
@@ -215,7 +215,7 @@ class Make implements ToolProvider {
   }
 
   /** Runtime context information. */
-  static class Run {
+  class Run {
     /** Stream to which "expected" output should be written. */
     final PrintWriter out;
     /** Stream to which any error messages should be written. */
@@ -231,6 +231,17 @@ class Make implements ToolProvider {
       this.out = out;
       this.err = err;
       this.start = Instant.now();
+    }
+
+    void tool(String name, String... args) {
+      logger.log(level, "Running tool named {0} with: {1}", name, List.of(args));
+      var tool = ToolProvider.findFirst(name).orElseThrow();
+      var code = tool.run(out, err, args);
+      if (code == 0) {
+        logger.log(level, "Tool {0} successfully executed.", name);
+        return;
+      }
+      throw new Error("Tool " + name + " execution failed with error code: " + code);
     }
 
     long toDurationMillis() {
@@ -303,7 +314,7 @@ class Make implements ToolProvider {
             module + '=' + work.compiledMulti.resolve("java-" + base).resolve(module));
         javac.with("--module", module);
       }
-      tool(run, "javac", javac.toStringArray());
+      run.tool("javac", javac.toStringArray());
     }
 
     private void packageMultiReleaseModule(String module, int base) {
@@ -329,7 +340,7 @@ class Make implements ToolProvider {
         jar.with("-C", path);
         jar.with(".");
       }
-      tool(run, "jar", jar.toStringArray());
+      run.tool("jar", jar.toStringArray());
     }
   }
 

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.StringWriter;
+import java.lang.System.Logger.Level;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -24,7 +25,8 @@ class DemoTests {
       var logger = new CollectingLogger("*");
       var home = Path.of("demo", "jigsaw-quick-start", "greetings");
       var main = new Make.Realm("main", Path.of("src"));
-      var make = new Make(logger, false, "greetings", "47.11", home, work, List.of(main));
+      var make =
+          new Make(logger, Level.ALL, false, "greetings", "47.11", home, work, List.of(main));
 
       assertSame(logger, make.logger);
       assertFalse(make.dryRun);
@@ -54,7 +56,7 @@ class DemoTests {
       var jar = make.work.packagedModules.resolve("com.greetings@47.11.jar");
       assertTrue(Files.isRegularFile(jar), "file not found: " + jar);
       var writer = new StringWriter();
-      make.tool(new Make.Run(writer), "jar", "--describe-module", "--file", jar.toString());
+      make.new Run(writer).tool("jar", "--describe-module", "--file", jar.toString());
       assertLinesMatch(
           List.of(
               "com.greetings@47.11 jar:file:.+module-info.class",
