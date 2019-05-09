@@ -1,3 +1,8 @@
+import static java.lang.System.Logger.Level.DEBUG;
+import static java.lang.System.Logger.Level.ERROR;
+import static java.lang.System.Logger.Level.INFO;
+import static java.lang.System.Logger.Level.WARNING;
+
 import java.io.File;
 import java.io.PrintWriter;
 import java.io.Writer;
@@ -12,11 +17,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.spi.ToolProvider;
 import java.util.stream.Collectors;
-
-import static java.lang.System.Logger.Level.ERROR;
-import static java.lang.System.Logger.Level.INFO;
-import static java.lang.System.Logger.Level.TRACE;
-import static java.lang.System.Logger.Level.WARNING;
 
 /** Modular project model and maker. */
 @SuppressWarnings("WeakerAccess")
@@ -48,6 +48,8 @@ class Make implements ToolProvider {
 
   /** Logger instance. */
   final System.Logger logger;
+  /** Logger level. */
+  final System.Logger.Level level;
   /** Dry-run flag. */
   final boolean dryRun;
   /** Name of the project. */
@@ -64,6 +66,7 @@ class Make implements ToolProvider {
   Make() {
     this(
         System.getLogger("Make.java"),
+        Boolean.getBoolean("ebug") ? INFO : DEBUG,
         Boolean.getBoolean("ry-run"),
         "project",
         "1.0.0-SNAPSHOT",
@@ -74,6 +77,7 @@ class Make implements ToolProvider {
 
   Make(
       System.Logger logger,
+      System.Logger.Level level,
       boolean dryRun,
       String project,
       String version,
@@ -81,6 +85,7 @@ class Make implements ToolProvider {
       Path work,
       List<Realm> realms) {
     this.logger = logger;
+    this.level = level;
     this.dryRun = dryRun;
     this.project = project;
     this.version = version;
@@ -97,43 +102,28 @@ class Make implements ToolProvider {
   @Override
   public int run(PrintWriter out, PrintWriter err, String... args) {
     logger.log(INFO, "{0} - {1}", name(), VERSION);
-    logger.log(INFO, "  args = {0}", List.of(args));
+    logger.log(level, "  args = {0}", List.of(args));
     logger.log(INFO, "Building {0} {1}", project, version);
-    logger.log(INFO, "  home = {0}", home.toUri());
-    logger.log(INFO, "  work = {0}", work.base.toUri());
+    logger.log(level, "  home = {0}", home.toUri());
+    logger.log(level, "  work = {0}", work.base.toUri());
     for (int i = 0; i < realms.size(); i++) {
-      logger.log(INFO, "  realms[{0}] = {1}", i, realms.get(i));
+      logger.log(level, "  realms[{0}] = {1}", i, realms.get(i));
     }
     if (dryRun) {
-      logger.log(INFO, "Dry-run ends here.");
+      logger.log(level, "Dry-run ends here.");
       return 0;
     }
     var run = new Run(out, err);
     try {
       Files.createDirectories(work.base);
-      build(run);
-      logger.log(INFO, "Build successful after {0} ms.", run.toDurationMillis());
+      for (var realm : realms) {
+        build(run, realm);
+      }
+      logger.log(level, "Build successful after {0} ms.", run.toDurationMillis());
       return 0;
     } catch (Throwable t) {
       logger.log(ERROR, "Build failed: " + t, t);
       return 1;
-    }
-  }
-
-  void tool(Run run, String name, String... args) {
-    logger.log(TRACE, "Running tool named {0} with: {1}", name, List.of(args));
-    var tool = ToolProvider.findFirst(name).orElseThrow();
-    var code = tool.run(run.out, run.err, args);
-    if (code == 0) {
-      logger.log(TRACE, "Tool {0} successfully executed.", name);
-      return;
-    }
-    throw new Error("Tool " + name + " execution failed with error code: " + code);
-  }
-
-  private void build(Run run) throws Exception {
-    for (var realm : realms) {
-      build(run, realm);
     }
   }
 
@@ -154,7 +144,7 @@ class Make implements ToolProvider {
     while (regularModulesIterator.hasNext()) {
       var module = regularModulesIterator.next();
       if (Files.notExists(moduleSourcePath.resolve(module).resolve("module-info.java"))) {
-        logger.log(INFO, "multi-release: {0}", module);
+        logger.log(level, "multi-release: {0}", module);
         var builder = new MultiReleaseBuilder(run, realm);
         builder.build(module);
         regularModulesIterator.remove();
@@ -162,7 +152,7 @@ class Make implements ToolProvider {
     }
     // compile and package regular "jigsaw" modules
     if (!regularModules.isEmpty()) {
-      logger.log(INFO, "regular modules: {0}", regularModules);
+      logger.log(level, "regular modules: {0}", regularModules);
       var args =
           new Args()
               .with("-d", work.compiledModules)
