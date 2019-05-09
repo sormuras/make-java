@@ -109,6 +109,7 @@ class Make implements ToolProvider {
     }
     var run = new Run(out, err);
     try {
+      Files.createDirectories(work.base);
       build(run);
       logger.log(INFO, "Build successful after {0} ms.", run.toDurationMillis());
       return 0;
