@@ -28,18 +28,8 @@ class Make implements ToolProvider {
   /** Convenient short-cut to {@code "user.dir"} as a path. */
   static final Path USER_PATH = Path.of(System.getProperty("user.dir"));
 
-  /** Set "single line" logging format system property, unless the property is already set. */
-  static void installSingleLineSimpleFormatterFormat() {
-    var format = "java.util.logging.SimpleFormatter.format";
-    if (System.getProperty(format) != null) {
-      return;
-    }
-    System.setProperty(format, "| %5$s%6$s%n");
-  }
-
   /** Main entry-point. */
   public static void main(String... args) {
-    installSingleLineSimpleFormatterFormat();
     var code = new Make().run(System.out, System.err, args);
     if (code != 0) {
       throw new Error("Make.java failed with error code: " + code);
