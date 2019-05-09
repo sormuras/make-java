@@ -155,8 +155,8 @@ class Make implements ToolProvider {
       var module = regularModulesIterator.next();
       if (Files.notExists(moduleSourcePath.resolve(module).resolve("module-info.java"))) {
         logger.log(INFO, "multi-release: {0}", module);
-        var base = compileMultiReleaseModule(run, realm, module);
-        packageMultiReleaseModule(run, module, base);
+        var builder = new MultiReleaseBuilder(run, realm);
+        builder.build(module);
         regularModulesIterator.remove();
       }
     }
@@ -171,82 +171,16 @@ class Make implements ToolProvider {
               .with("--module", String.join(",", regularModules));
       tool(run, "javac", args.toStringArray());
       for (var module : regularModules) {
+        var file = work.packagedModules.resolve(module + "@" + version + ".jar");
         args =
             new Args()
                 .with("--create")
-                .with("--file", work.packagedModules.resolve(module + "@" + version + ".jar"))
+                .with("--file", file)
                 .with("-C", work.compiledModules.resolve(module))
                 .with(".");
         tool(run, "jar", args.toStringArray());
       }
     }
-  }
-
-  private int compileMultiReleaseModule(Run run, Realm realm, String module) {
-    int base = 8; // TODO Find declared low base number: "java-*"
-    for (var release = base; release <= Runtime.version().feature(); release++) {
-      compileMultiReleaseModule(run, realm, module, base, release);
-    }
-    return base;
-  }
-
-  private void compileMultiReleaseModule(
-      Run run, Realm realm, String module, int base, int release) {
-    var moduleSourcePath = home.resolve(realm.source);
-    var javaR = "java-" + release;
-    var source = moduleSourcePath.resolve(module).resolve(javaR);
-    if (Files.notExists(source)) {
-      logger.log(WARNING, "Source path not found: " + source);
-      return;
-    }
-    var destination = work.compiledMulti.resolve(javaR);
-    var javac = new Args();
-    //    if (debug) {
-    //      javac.add("-verbose");
-    //    }
-    javac.with("--release", release);
-    if (release < 9) {
-      javac.with("-d", destination.resolve(module));
-      // TODO "-cp" ...
-      javac.withEach(Util.listJavaFiles(source)); // javac.with("**/*.java");
-    } else {
-      javac.with("-d", destination);
-      javac.with("--module-version", version);
-      // TODO javac.with("--module-path", ...);
-      var pathR = moduleSourcePath + File.separator + "*" + File.separator + javaR;
-      var sources = List.of(pathR, "" + moduleSourcePath);
-      javac.with("--module-source-path", String.join(File.pathSeparator, sources));
-      javac.with(
-          "--patch-module",
-          module + '=' + work.compiledMulti.resolve("java-" + base).resolve(module));
-      javac.with("--module", module);
-    }
-    tool(run, "javac", javac.toStringArray());
-  }
-
-  private void packageMultiReleaseModule(Run run, String module, int base) {
-    var jar =
-        new Args()
-            //      if (debug) {
-            //        jar.add("--verbose");
-            //      }
-            .with("--create")
-            .with("--file", work.packagedModules.resolve(module + '@' + VERSION + ".jar"))
-            // "base" classes
-            .with("-C", work.compiledMulti.resolve("java-" + base).resolve(module))
-            .with(".");
-
-    // "base" + 1 .. N classes
-    for (var release = base + 1; release <= Runtime.version().feature(); release++) {
-      var path = work.compiledMulti.resolve("java-" + release).resolve(module);
-      if (Files.notExists(path)) {
-        continue;
-      }
-      jar.with("--release", release);
-      jar.with("-C", path);
-      jar.with(".");
-    }
-    tool(run, "jar", jar.toStringArray());
   }
 
   /** Workspace paths and other assets. */
@@ -329,6 +263,83 @@ class Make implements ToolProvider {
     @Override
     public String toString() {
       return "Realm{" + "name=" + name + ", source=" + source + '}';
+    }
+  }
+
+  class MultiReleaseBuilder {
+    final Run run;
+    final Realm realm;
+
+    MultiReleaseBuilder(Run run, Realm realm) {
+      this.run = run;
+      this.realm = realm;
+    }
+
+    void build(String module) {
+      int base = 8; // TODO Find declared low base number: "java-*"
+      for (var release = base; release <= Runtime.version().feature(); release++) {
+        compileMultiReleaseModule(module, base, release);
+      }
+      packageMultiReleaseModule(module, base);
+    }
+
+    private void compileMultiReleaseModule(String module, int base, int release) {
+      var moduleSourcePath = home.resolve(realm.source);
+      var javaR = "java-" + release;
+      var source = moduleSourcePath.resolve(module).resolve(javaR);
+      if (Files.notExists(source)) {
+        logger.log(WARNING, "Source path not found: " + source);
+        return;
+      }
+      var destination = work.compiledMulti.resolve(javaR);
+      var javac = new Args();
+      // if (debug) {
+      //   javac.add("-verbose");
+      // }
+      javac.with("--release", release);
+      if (release < 9) {
+        javac.with("-d", destination.resolve(module));
+        // TODO "-cp" ...
+        javac.withEach(Util.listJavaFiles(source)); // javac.with("**/*.java");
+      } else {
+        javac.with("-d", destination);
+        javac.with("--module-version", version);
+        // TODO javac.with("--module-path", ...);
+        var pathR = moduleSourcePath + File.separator + "*" + File.separator + javaR;
+        var sources = List.of(pathR, "" + moduleSourcePath);
+        javac.with("--module-source-path", String.join(File.pathSeparator, sources));
+        javac.with(
+            "--patch-module",
+            module + '=' + work.compiledMulti.resolve("java-" + base).resolve(module));
+        javac.with("--module", module);
+      }
+      tool(run, "javac", javac.toStringArray());
+    }
+
+    private void packageMultiReleaseModule(String module, int base) {
+      var file = work.packagedModules.resolve(module + '@' + VERSION + ".jar");
+      var jar =
+          new Args()
+              // if (debug) {
+              //   jar.add("--verbose");
+              // }
+              .with("--create")
+              .with("--file", file)
+              // "base" classes
+              .with("-C", work.compiledMulti.resolve("java-" + base).resolve(module))
+              .with(".");
+
+      // "base" + 1 .. N classes
+      for (var release = base + 1; release <= Runtime.version().feature(); release++) {
+        var path = work.compiledMulti.resolve("java-" + release).resolve(module);
+        if (Files.notExists(path)) {
+          continue;
+        }
+        jar.with("--release", release);
+        jar.with("-C", path);
+        jar.with(".");
+      }
+      tool(run, "jar", jar.toStringArray());
     }
   }
 
