@@ -27,9 +27,18 @@ class Make implements ToolProvider {
   /** Convenient short-cut to {@code "user.dir"} as a path. */
   static final Path USER_PATH = Path.of(System.getProperty("user.dir"));
 
+  static Make of(Path home) {
+    var debug = Boolean.getBoolean("ebug");
+    var dryRun = Boolean.getBoolean("ry-run");
+    var project = home.getFileName().toString();
+    var version = "1.0.0-SNAPSHOT";
+    var realms = List.of(new Realm("main", Path.of("src", "main")));
+    return new Make(debug, dryRun, project, version, home, home.resolve("work"), realms);
+  }
+
   /** Main entry-point. */
   public static void main(String... args) {
-    var code = new Make().run(System.out, System.err, args);
+    var code = Make.of(USER_PATH).run(System.out, System.err, args);
     if (code != 0) {
       throw new Error("Make.java failed with error code: " + code);
     }
@@ -49,17 +58,6 @@ class Make implements ToolProvider {
   final Work work;
   /** Realms of this project. */
   final List<Realm> realms;
-
-  Make() {
-    this(
-        Boolean.getBoolean("ebug"),
-        Boolean.getBoolean("ry-run"),
-        "project",
-        "1.0.0-SNAPSHOT",
-        USER_PATH,
-        USER_PATH.resolve("work"),
-        List.of(new Realm("main", Path.of("src", "main"))));
-  }
 
   Make(
       boolean debug,

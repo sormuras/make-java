@@ -27,6 +27,7 @@ class DemoTests {
       assertEquals("47.11", make.version);
       assertEquals(home, make.home);
       assertEquals(work, make.work.base);
+      assertEquals(1, make.realms.size());
 
       assertTrue(Files.isDirectory(make.home.resolve(main.source).resolve("com.greetings")));
 

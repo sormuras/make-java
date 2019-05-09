@@ -36,11 +36,10 @@ class ModularWorldTests {
         .map(home -> dynamicTest(home.getFileName().toString(), () -> build(home)));
   }
 
-  private void build(Path home) throws Exception {
+  private void build(Path home) {
     var project = home.getFileName().toString();
     var version = "0-TEST";
     var work = home.resolve("work");
-    Files.createDirectories(work);
     var main = new Make.Realm("main", Path.of("src", "main"));
 
     var debug = DebugRun.newInstance();
