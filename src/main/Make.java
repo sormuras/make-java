@@ -5,7 +5,6 @@ import static java.lang.System.Logger.Level.WARNING;
 
 import java.io.File;
 import java.io.PrintWriter;
-import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -36,10 +35,8 @@ class Make implements ToolProvider {
     }
   }
 
-  /** Logger instance. */
-  final System.Logger logger;
-  /** Logger level. */
-  final System.Logger.Level level;
+  /** Debug flag. */
+  final boolean debug;
   /** Dry-run flag. */
   final boolean dryRun;
   /** Name of the project. */
@@ -55,8 +52,7 @@ class Make implements ToolProvider {
 
   Make() {
     this(
-        System.getLogger("Make.java"),
-        Boolean.getBoolean("ebug") ? INFO : DEBUG,
+        Boolean.getBoolean("ebug"),
         Boolean.getBoolean("ry-run"),
         "project",
         "1.0.0-SNAPSHOT",
@@ -66,16 +62,14 @@ class Make implements ToolProvider {
   }
 
   Make(
-      System.Logger logger,
-      System.Logger.Level level,
+      boolean debug,
       boolean dryRun,
       String project,
       String version,
       Path home,
       Path work,
       List<Realm> realms) {
-    this.logger = logger;
-    this.level = level;
+    this.debug = debug;
     this.dryRun = dryRun;
     this.project = project;
     this.version = version;
@@ -91,28 +85,34 @@ class Make implements ToolProvider {
 
   @Override
   public int run(PrintWriter out, PrintWriter err, String... args) {
-    logger.log(INFO, "{0} - {1}", name(), VERSION);
-    logger.log(level, "  args = {0}", List.of(args));
-    logger.log(INFO, "Building {0} {1}", project, version);
-    logger.log(level, "  home = {0}", home.toUri());
-    logger.log(level, "  work = {0}", work.base.toUri());
+    var run = new Run(debug ? System.Logger.Level.ALL : System.Logger.Level.INFO, out, err);
+    return run(run, args);
+  }
+
+  int run(Run run, String... args) {
+    run.log(INFO, "%s - %s", name(), VERSION);
+    run.log(DEBUG, "  args = %s", List.of(args));
+    run.log(DEBUG, "  java = %s", Runtime.version());
+    run.log(INFO, "Building project '%s', version %s...", project, version);
+    run.log(DEBUG, "  home = %s", home.toUri());
+    run.log(DEBUG, "  work = %s", work.base.toUri());
     for (int i = 0; i < realms.size(); i++) {
-      logger.log(level, "  realms[{0}] = {1}", i, realms.get(i));
+      run.log(DEBUG, "  realms[%d] = %s", i, realms.get(i));
     }
     if (dryRun) {
-      logger.log(level, "Dry-run ends here.");
+      run.log(INFO, "Dry-run ends here.");
       return 0;
     }
-    var run = new Run(out, err);
     try {
       Files.createDirectories(work.base);
       for (var realm : realms) {
         build(run, realm);
       }
-      logger.log(level, "Build successful after {0} ms.", run.toDurationMillis());
+      run.log(DEBUG, "Build successful after %d ms.", run.toDurationMillis());
       return 0;
     } catch (Throwable t) {
-      logger.log(ERROR, "Build failed: " + t, t);
+      run.log(ERROR, "Build failed: %s", t.getMessage());
+      t.printStackTrace(run.err);
       return 1;
     }
   }
@@ -120,7 +120,7 @@ class Make implements ToolProvider {
   private void build(Run run, Realm realm) throws Exception {
     var moduleSourcePath = home.resolve(realm.source);
     if (Files.notExists(moduleSourcePath)) {
-      logger.log(WARNING, "Source path of {0} realm not found: {1}", realm.name, moduleSourcePath);
+      run.log(WARNING, "Source path of %s realm not found: %s", realm.name, moduleSourcePath);
       return;
     }
     var modules = Util.listDirectoryNames(moduleSourcePath);
@@ -134,7 +134,7 @@ class Make implements ToolProvider {
     while (regularModulesIterator.hasNext()) {
       var module = regularModulesIterator.next();
       if (Files.notExists(moduleSourcePath.resolve(module).resolve("module-info.java"))) {
-        logger.log(level, "multi-release: {0}", module);
+        run.log(DEBUG, "Building multi-release module: %s", module);
         var builder = new MultiReleaseBuilder(run, realm);
         builder.build(module);
         regularModulesIterator.remove();
@@ -142,9 +142,10 @@ class Make implements ToolProvider {
     }
     // compile and package regular "jigsaw" modules
     if (!regularModules.isEmpty()) {
-      logger.log(level, "regular modules: {0}", regularModules);
+      run.log(DEBUG, "Building %d module(s): %s", regularModules.size(), regularModules);
       var args =
           new Args()
+              .with(debug, "-verbose")
               .with("-d", work.compiledModules)
               .with("--module-version", version)
               .with("--module-source-path", moduleSourcePath)
@@ -154,6 +155,7 @@ class Make implements ToolProvider {
         var file = work.packagedModules.resolve(module + "@" + version + ".jar");
         args =
             new Args()
+                .with(debug, "--verbose")
                 .with("--create")
                 .with("--file", file)
                 .with("-C", work.compiledModules.resolve(module))
@@ -188,6 +190,10 @@ class Make implements ToolProvider {
       return this;
     }
 
+    Args with(boolean condition, Object argument) {
+      return condition ? with(argument) : this;
+    }
+
     /** Add two arguments by invoking {@link #with(Object)} for the key and value elements. */
     Args with(Object key, Object value) {
       return with(key).with(value);
@@ -205,7 +211,9 @@ class Make implements ToolProvider {
   }
 
   /** Runtime context information. */
-  class Run {
+  static class Run {
+    /** Current logging level threshold. */
+    final System.Logger.Level threshold;
     /** Stream to which "expected" output should be written. */
     final PrintWriter out;
     /** Stream to which any error messages should be written. */
@@ -213,25 +221,33 @@ class Make implements ToolProvider {
     /** Time instant recorded on creation of this instance. */
     final Instant start;
 
-    Run(Writer writer) {
-      this(new PrintWriter(writer), new PrintWriter(writer));
-    }
-
-    Run(PrintWriter out, PrintWriter err) {
+    Run(System.Logger.Level threshold, PrintWriter out, PrintWriter err) {
+      this.threshold = threshold;
       this.out = out;
       this.err = err;
       this.start = Instant.now();
     }
 
+    /** Log message unless threshold suppresses it. */
+    void log(System.Logger.Level level, String format, Object... args) {
+      if (level.getSeverity() < threshold.getSeverity()) {
+        return;
+      }
+      var consumer = level.getSeverity() < WARNING.getSeverity() ? out : err;
+      var message = String.format(format, args);
+      consumer.println(message);
+    }
+
+    /** Run provided tool. */
     void tool(String name, String... args) {
-      logger.log(level, "Running tool named {0} with: {1}", name, List.of(args));
+      log(DEBUG, "Running tool '%s' with: %s", name, List.of(args));
       var tool = ToolProvider.findFirst(name).orElseThrow();
       var code = tool.run(out, err, args);
       if (code == 0) {
-        logger.log(level, "Tool {0} successfully executed.", name);
+        log(DEBUG, "Tool '%s' successfully executed.", name);
         return;
       }
-      throw new Error("Tool " + name + " execution failed with error code: " + code);
+      throw new Error("Tool '" + name + "' execution failed with error code: " + code);
     }
 
     long toDurationMillis() {
@@ -279,15 +295,11 @@ class Make implements ToolProvider {
       var javaR = "java-" + release;
       var source = moduleSourcePath.resolve(module).resolve(javaR);
       if (Files.notExists(source)) {
-        logger.log(WARNING, "Source path not found: " + source);
+        run.log(WARNING, "Source path not found: %s", source);
         return;
       }
       var destination = work.compiledMulti.resolve(javaR);
-      var javac = new Args();
-      // if (debug) {
-      //   javac.add("-verbose");
-      // }
-      javac.with("--release", release);
+      var javac = new Args().with(debug, "-verbose").with("--release", release);
       if (release < 9) {
         javac.with("-d", destination.resolve(module));
         // TODO "-cp" ...
@@ -311,9 +323,7 @@ class Make implements ToolProvider {
       var file = work.packagedModules.resolve(module + '@' + VERSION + ".jar");
       var jar =
           new Args()
-              // if (debug) {
-              //   jar.add("--verbose");
-              // }
+              .with(debug, "--verbose")
               .with("--create")
               .with("--file", file)
               // "base" classes

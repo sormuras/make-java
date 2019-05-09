@@ -2,7 +2,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertLinesMatch;
 import static org.junit.jupiter.api.DynamicTest.dynamicTest;
 
-import java.lang.System.Logger.Level;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -38,30 +37,18 @@ class ModularWorldTests {
   }
 
   private void build(Path home) throws Exception {
-    var logger = new CollectingLogger("*");
     var project = home.getFileName().toString();
     var version = "0-TEST";
     var work = home.resolve("work");
     Files.createDirectories(work);
     var main = new Make.Realm("main", Path.of("src", "main"));
 
-    var make = new Make(logger, Level.ALL, false, project, version, home, work, List.of(main));
-    assertEquals(
-        0,
-        make.run(System.out, System.err),
-        logger.toString() + "\n\ntree\n" + String.join("\n|  ", treeWalk(home)));
+    var debug = DebugRun.newInstance();
+    var make = new Make(true, false, project, version, home, work, List.of(main));
+    assertEquals(0, make.run(debug), debug + "\n" + String.join("\n", treeWalk(home)));
     assertLinesMatch(
-        List.of(
-            "Make.java - " + Make.VERSION,
-            "  args = []",
-            String.format("Building %s %s", project, version),
-            "  home = " + home.toUri(),
-            "  work = " + work.toUri(),
-            "  realms[0] = Realm{name=main, source=" + Path.of("src/main") + "}",
-            ">> BUILD >>",
-            "Build successful after \\d+ ms\\."),
-        logger.getLines());
-    // treeWalk(home).forEach(System.out::println);
+        List.of("Make.java - " + Make.VERSION, ">> BUILD >>", "Build successful after \\d+ ms\\."),
+        debug.lines());
   }
 
   static Path download(Consumer<String> logger, Path target, URI uri) throws Exception {
