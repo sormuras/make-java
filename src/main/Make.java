@@ -38,8 +38,8 @@ class Make implements ToolProvider {
   static Make of(Path home) {
     var debug = Boolean.getBoolean("ebug");
     var dryRun = Boolean.getBoolean("ry-run");
-    var project = home.getFileName().toString();
-    var version = "1.0.0-SNAPSHOT";
+    var project = System.getProperty("project.name", home.getFileName().toString());
+    var version = System.getProperty("project.version", "1.0.0-SNAPSHOT");
     var realms = List.of(new Realm("main", Path.of("src", "main")));
     return new Make(debug, dryRun, project, version, home, home.resolve("work"), realms);
   }
