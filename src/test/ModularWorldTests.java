@@ -2,6 +2,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertLinesMatch;
 import static org.junit.jupiter.api.DynamicTest.dynamicTest;
 
+import java.lang.System.Logger.Level;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -44,7 +45,7 @@ class ModularWorldTests {
     Files.createDirectories(work);
     var main = new Make.Realm("main", Path.of("src", "main"));
 
-    var make = new Make(logger, false, project, version, home, work, List.of(main));
+    var make = new Make(logger, Level.ALL, false, project, version, home, work, List.of(main));
     assertEquals(
         0,
         make.run(System.out, System.err),
