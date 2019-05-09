@@ -146,6 +146,7 @@ class Make implements ToolProvider {
           new Args()
               .with(debug, "-verbose")
               .with("-d", work.compiledModules)
+              .with("--module-path", work.packagedModules)
               .with("--module-version", version)
               .with("--module-source-path", moduleSourcePath)
               .with("--module", String.join(",", regularModules));
