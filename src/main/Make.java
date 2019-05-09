@@ -18,7 +18,6 @@ import java.util.spi.ToolProvider;
 import java.util.stream.Collectors;
 
 /** Modular project model and maker. */
-@SuppressWarnings("WeakerAccess")
 class Make implements ToolProvider {
 
   /** Version is either {@code master} or {@link Runtime.Version#parse(String)}-compatible. */
@@ -27,6 +26,15 @@ class Make implements ToolProvider {
   /** Convenient short-cut to {@code "user.dir"} as a path. */
   static final Path USER_PATH = Path.of(System.getProperty("user.dir"));
 
+  /** Main entry-point. */
+  public static void main(String... args) {
+    var code = Make.of(USER_PATH).run(System.out, System.err, args);
+    if (code != 0) {
+      throw new Error("Make.java failed with error code: " + code);
+    }
+  }
+
+  /** Create instance using the given path as the home of project. */
   static Make of(Path home) {
     var debug = Boolean.getBoolean("ebug");
     var dryRun = Boolean.getBoolean("ry-run");
@@ -34,14 +42,6 @@ class Make implements ToolProvider {
     var version = "1.0.0-SNAPSHOT";
     var realms = List.of(new Realm("main", Path.of("src", "main")));
     return new Make(debug, dryRun, project, version, home, home.resolve("work"), realms);
-  }
-
-  /** Main entry-point. */
-  public static void main(String... args) {
-    var code = Make.of(USER_PATH).run(System.out, System.err, args);
-    if (code != 0) {
-      throw new Error("Make.java failed with error code: " + code);
-    }
   }
 
   /** Debug flag. */
