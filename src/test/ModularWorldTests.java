@@ -1,6 +1,6 @@
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertLinesMatch;
-import static org.junit.jupiter.api.DynamicTest.dynamicTest;
+import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.TestFactory;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.net.URI;
 import java.nio.file.Files;
@@ -11,14 +11,15 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.TestFactory;
-import org.junit.jupiter.api.io.TempDir;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertLinesMatch;
+import static org.junit.jupiter.api.DynamicTest.dynamicTest;
 
 class ModularWorldTests {
 
   /** https://github.com/sormuras/modular-world/releases */
-  private static final String VERSION = "0.1";
+  private static final String VERSION = "0.2";
 
   @TestFactory
   Stream<DynamicTest> buildModularWorld(@TempDir Path temp) throws Exception {
@@ -30,13 +31,13 @@ class ModularWorldTests {
         new ProcessBuilder("jar", "--extract", "--file", zip).directory(temp.toFile()).start();
     assertEquals(0, extract.waitFor(), extract.toString());
     var homes = Make.Util.listDirectories(temp.resolve("modular-world-" + VERSION));
-    assertEquals(3, homes.size());
+    assertEquals(4, homes.size());
     // build all modular projects
     return homes.stream()
         .map(home -> dynamicTest(home.getFileName().toString(), () -> build(home)));
   }
 
-  private void build(Path home) {
+  private void build(Path home) throws Exception {
     var project = home.getFileName().toString();
     var version = "0-TEST";
     var work = home.resolve("work");
@@ -45,9 +46,21 @@ class ModularWorldTests {
     var debug = DebugRun.newInstance();
     var make = new Make(true, false, project, version, home, work, List.of(main));
     assertEquals(0, make.run(debug), debug + "\n" + String.join("\n", treeWalk(home)));
-    assertLinesMatch(
-        List.of("Make.java - " + Make.VERSION, ">> BUILD >>", "Build successful after \\d+ ms\\."),
-        debug.lines());
+    var jdeps =
+        new Make.Args()
+            .with("--module-path", make.work.packagedModules.toString())
+            .with("--add-modules", "ALL-MODULE-PATH")
+            .with("--multi-release", "base")
+            .with("-summary");
+    debug.tool("jdeps", jdeps.toStringArray());
+    var expectedLines =
+        new ArrayList<>(
+            List.of(
+                "Make.java - " + Make.VERSION, ">> BUILD >>", "Build successful after \\d+ ms\\."));
+    expectedLines.add("Running tool 'jdeps' with.+");
+    expectedLines.addAll(Files.readAllLines(home.resolve("jdeps-summary.txt")));
+    expectedLines.add("Tool 'jdeps' successfully executed.");
+    assertLinesMatch(expectedLines, debug.lines());
   }
 
   static Path download(Consumer<String> logger, Path target, URI uri) throws Exception {
