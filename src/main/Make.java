@@ -106,7 +106,8 @@ class Make implements ToolProvider {
       for (var realm : realms) {
         build(run, realm);
       }
-      run.log(DEBUG, "Build successful after %d ms.", run.toDurationMillis());
+      run.log(INFO, "Modular jars: " + Util.listFiles(List.of(work.packagedModules), __ -> true));
+      run.log(INFO, "Build successful after %d ms.", run.toDurationMillis());
       return 0;
     } catch (Throwable t) {
       run.log(ERROR, "Build failed: %s", t.getMessage());
@@ -293,7 +294,7 @@ class Make implements ToolProvider {
       var javaR = "java-" + release;
       var source = moduleSourcePath.resolve(module).resolve(javaR);
       if (Files.notExists(source)) {
-        run.log(WARNING, "Source path not found: %s", source);
+        run.log(DEBUG, "Skipping %s, no source path exists: %s", javaR, source);
         return;
       }
       var destination = work.compiledMulti.resolve(javaR);
