@@ -41,7 +41,7 @@ class ModularWorldTests {
     var project = home.getFileName().toString();
     var version = "0-TEST";
     var work = home.resolve("work");
-    var main = new Make.Realm("main", Path.of("src", "main"));
+    var main = Make.Realm.of(home, "main");
 
     var debug = DebugRun.newInstance();
     var make = new Make(true, false, project, version, home, work, List.of(main));

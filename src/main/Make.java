@@ -10,8 +10,10 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.spi.ToolProvider;
@@ -40,7 +42,7 @@ class Make implements ToolProvider {
     var dryRun = Boolean.getBoolean("ry-run");
     var project = System.getProperty("project.name", home.getFileName().toString());
     var version = System.getProperty("project.version", "1.0.0-SNAPSHOT");
-    var realms = List.of(new Realm("main", Path.of("src", "main")));
+    var realms = List.of(Realm.of(home, "main"));
     return new Make(debug, dryRun, project, version, home, home.resolve("work"), realms);
   }
 
@@ -257,6 +259,14 @@ class Make implements ToolProvider {
 
   /** Building block, source set, scope, directory, named context: {@code main}, {@code test}. */
   static class Realm {
+    /** Create realm by guessing the module source path using its name. */
+    static Realm of(Path home, String name) {
+      var source =
+          Util.findFirstDirectory(home, "src/" + name + "/java", "src/" + name, name)
+              .orElseThrow(() -> new Error("Couldn't find module source path!"));
+      return new Realm(name, source);
+    }
+
     /** Logical name of the realm. */
     final String name;
     /** Module source path. */
@@ -349,6 +359,11 @@ class Make implements ToolProvider {
     /** No instance permitted. */
     Util() {
       throw new Error();
+    }
+
+    /** Find first subdirectory below the given home path. */
+    static Optional<Path> findFirstDirectory(Path home, String... paths) {
+      return Arrays.stream(paths).map(home::resolve).filter(Files::isDirectory).findFirst();
     }
 
     /** Test supplied path for pointing to a regular Java source compilation unit file. */
