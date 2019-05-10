@@ -111,12 +111,13 @@ class Make implements ToolProvider {
       var jars = Util.listFiles(List.of(work.packagedModules), Util::isJarFile);
       run.log(INFO, "Modular jars: " + jars);
       if (debug) {
+        var main = realms.get(0);
         var jdeps =
             new Make.Args()
-                .with("--module-path", List.of(work.packagedModules, Path.of("mods")))
+                .with("--module-path", List.of(work.packagedModules, Path.of("lib", main.name)))
                 .with(
                     "--add-modules",
-                    String.join(",", Util.listDirectoryNames(home.resolve(realms.get(0).source))))
+                    String.join(",", Util.listDirectoryNames(home.resolve(main.source))))
                 .with("--multi-release", "base")
                 .with("-summary");
         run.tool("jdeps", jdeps.toStringArray());
@@ -157,63 +158,8 @@ class Make implements ToolProvider {
         regularModulesIterator.remove();
       }
     }
-    // compile regular modules
-    if (!regularModules.isEmpty()) {
-      run.log(DEBUG, "Building %d module(s): %s", regularModules.size(), regularModules);
-      var args =
-          new Args()
-              .with(false, "-verbose")
-              .with("-encoding", "UTF-8")
-              .with("-Xlint")
-              .with("-d", work.compiledModules)
-              .with("--module-path", List.of(work.packagedModules, Path.of("mods")))
-              .with("--module-version", version)
-              .with("--module-source-path", moduleSourcePath)
-              .with("--module", String.join(",", regularModules));
-      run.tool("javac", args.toStringArray());
-      if (!realm.isWithAllTheBellsAndWhistles()) {
-        return;
-      }
-      // jar compiled and source units
-      for (var module : regularModules) {
-        var modularJar = work.packagedModules.resolve(module + "@" + version + ".jar");
-        args =
-            new Args()
-                .with(debug, "--verbose")
-                .with("--create")
-                .with("--file", modularJar)
-                .with("-C", work.compiledModules.resolve(module))
-                .with(".");
-        run.tool("jar", args.toStringArray());
-        var sourcesJar = work.packagedSources.resolve(module + "@" + version + "-sources.jar");
-        args =
-            new Args()
-                .with(debug, "--verbose")
-                .with("--create")
-                .with("--file", sourcesJar)
-                .with("-C", moduleSourcePath.resolve(module))
-                .with(".");
-        run.tool("jar", args.toStringArray());
-      }
-      // javadoc
-      var javaSources = new ArrayList<String>();
-      javaSources.add(moduleSourcePath.toString());
-      for (var release = 7; release <= Runtime.version().feature(); release++) {
-        var separator = File.separator;
-        javaSources.add(moduleSourcePath + separator + "*" + separator + "java-" + release);
-      }
-      args =
-          new Args()
-              .with(false, "-verbose")
-              .with("-encoding", "UTF-8")
-              .with("-quiet")
-              .with("-windowtitle", project + " " + version)
-              .with("-d", work.compiledJavadoc)
-              .with("--module-path", List.of(work.packagedModules, Path.of("mods")))
-              .with("--module-source-path", String.join(File.pathSeparator, javaSources))
-              .with("--module", String.join(",", modules));
-      run.tool("javadoc", args.toStringArray());
-    }
+    var moduleBuilder = new ModuleBuilder(run, realm);
+    moduleBuilder.build(regularModules);
   }
 
   /** Workspace paths and other assets. */
@@ -259,7 +205,10 @@ class Make implements ToolProvider {
     /** Add two arguments, i.e. the key and the paths joined by system's path separator. */
     Args with(Object key, List<Path> paths) {
       var value =
-          paths.stream().map(Object::toString).collect(Collectors.joining(File.pathSeparator));
+          paths.stream()
+              // .filter(Files::isDirectory)
+              .map(Object::toString)
+              .collect(Collectors.joining(File.pathSeparator));
       return with(key, value);
     }
 
@@ -351,13 +300,93 @@ class Make implements ToolProvider {
     }
   }
 
-  class MultiReleaseBuilder {
+  /** Build modules. */
+  abstract class AbstractModuleBuilder {
     final Run run;
     final Realm realm;
+    final Path moduleSourcePath;
 
-    MultiReleaseBuilder(Run run, Realm realm) {
+    AbstractModuleBuilder(Run run, Realm realm) {
       this.run = run;
       this.realm = realm;
+      this.moduleSourcePath = home.resolve(realm.source);
+    }
+  }
+
+  /** Build regular modules. */
+  class ModuleBuilder extends AbstractModuleBuilder {
+
+    ModuleBuilder(Run run, Realm realm) {
+      super(run, realm);
+    }
+
+    void build(List<String> regularModules) {
+      if (regularModules.isEmpty()) {
+        run.log(DEBUG, "No regular modules available to build.");
+        return;
+      }
+      run.log(DEBUG, "Building %d module(s): %s", regularModules.size(), regularModules);
+      var args =
+          new Args()
+              .with(false, "-verbose")
+              .with("-encoding", "UTF-8")
+              .with("-Xlint")
+              .with("-d", work.compiledModules)
+              .with("--module-path", List.of(work.packagedModules, Path.of("lib", realm.name)))
+              .with("--module-version", version)
+              .with("--module-source-path", moduleSourcePath)
+              .with("--module", String.join(",", regularModules));
+      run.tool("javac", args.toStringArray());
+      if (!realm.isWithAllTheBellsAndWhistles()) {
+        return;
+      }
+      // jar compiled and source units
+      for (var module : regularModules) {
+        var modularJar = work.packagedModules.resolve(module + "@" + version + ".jar");
+        args =
+            new Args()
+                .with(debug, "--verbose")
+                .with("--create")
+                .with("--file", modularJar)
+                .with("-C", work.compiledModules.resolve(module))
+                .with(".");
+        run.tool("jar", args.toStringArray());
+        var sourcesJar = work.packagedSources.resolve(module + "@" + version + "-sources.jar");
+        args =
+            new Args()
+                .with(debug, "--verbose")
+                .with("--create")
+                .with("--file", sourcesJar)
+                .with("-C", moduleSourcePath.resolve(module))
+                .with(".");
+        run.tool("jar", args.toStringArray());
+      }
+      // javadoc
+      var modules = Util.listDirectoryNames(moduleSourcePath);
+      var javaSources = new ArrayList<String>();
+      javaSources.add(moduleSourcePath.toString());
+      for (var release = 7; release <= Runtime.version().feature(); release++) {
+        var separator = File.separator;
+        javaSources.add(moduleSourcePath + separator + "*" + separator + "java-" + release);
+      }
+      args =
+          new Args()
+              .with(false, "-verbose")
+              .with("-encoding", "UTF-8")
+              .with("-quiet")
+              .with("-windowtitle", project + " " + version)
+              .with("-d", work.compiledJavadoc)
+              .with("--module-path", List.of(work.packagedModules, Path.of("lib", realm.name)))
+              .with("--module-source-path", String.join(File.pathSeparator, javaSources))
+              .with("--module", String.join(",", modules));
+      run.tool("javadoc", args.toStringArray());
+    }
+  }
+
+  /** Build multi-release modules. */
+  class MultiReleaseBuilder extends AbstractModuleBuilder {
+    MultiReleaseBuilder(Run run, Realm realm) {
+      super(run, realm);
     }
 
     void build(String module) {
@@ -393,7 +422,7 @@ class Make implements ToolProvider {
       } else {
         javac.with("-d", destination);
         javac.with("--module-version", version);
-        javac.with("--module-path", List.of(Path.of("mods")));
+        javac.with("--module-path", List.of(Path.of("lib", realm.name)));
         var pathR = moduleSourcePath + File.separator + "*" + File.separator + javaR;
         var sources = List.of(pathR, "" + moduleSourcePath);
         javac.with("--module-source-path", String.join(File.pathSeparator, sources));
