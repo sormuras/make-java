@@ -9,7 +9,6 @@ import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -45,7 +44,7 @@ class ModularWorldTests {
 
     var debug = DebugRun.newInstance();
     var make = new Make(true, false, project, version, home, work, List.of(main));
-    assertEquals(0, make.run(debug), debug + "\n" + String.join("\n", treeWalk(home)));
+    assertEquals(0, make.run(debug), debug + "\n" + String.join("\n", DebugRun.treeWalk(home)));
     var expectedLines = new ArrayList<>(List.of("Make.java - " + Make.VERSION, ">> BUILD >>"));
     expectedLines.add("Running tool 'jdeps' with.+");
     expectedLines.addAll(Files.readAllLines(home.resolve("jdeps-summary.txt")));
@@ -85,26 +84,5 @@ class ModularWorldTests {
       logger.accept(String.format("Downloaded %s successfully.", fileName));
     }
     return target;
-  }
-
-  /** Walk directory tree structure. */
-  static List<String> treeWalk(Path root) {
-    var lines = new ArrayList<String>();
-    treeWalk(root, lines::add);
-    return lines;
-  }
-
-  /** Walk directory tree structure. */
-  static void treeWalk(Path root, Consumer<String> out) {
-    try (var stream = Files.walk(root)) {
-      stream
-          .map(root::relativize)
-          .map(path -> path.toString().replace('\\', '/'))
-          .sorted()
-          .filter(Predicate.not(String::isEmpty))
-          .forEach(out);
-    } catch (Exception e) {
-      throw new Error("Walking tree failed: " + root, e);
-    }
   }
 }
