@@ -104,7 +104,7 @@ class Make implements ToolProvider {
       }
       var main = realms.get(0);
       var jars = Util.listFiles(List.of(main.packagedModules), Util::isJarFile);
-      run.log(INFO, "Modular jars: " + jars);
+      jars.forEach(jar -> run.log(INFO, "  -> " + jar.getFileName()));
       if (debug) {
         var modulePath = new ArrayList<Path>();
         modulePath.add(main.packagedModules);
@@ -119,7 +119,6 @@ class Make implements ToolProvider {
         run.tool("jdeps", jdeps.toStringArray());
       }
       // TODO Launch JUnit Platform
-      // TODO Create "-javadoc.jar" for each module
       run.log(INFO, "Build successful after %d ms.", run.toDurationMillis());
       return 0;
     } catch (Throwable t) {
@@ -290,9 +289,9 @@ class Make implements ToolProvider {
       packagedSources = work.resolve("sources");
     }
 
-    /** Realm needs to be treated with jar and javadoc and all the bells and whistles. */
-    boolean isWithAllTheBellsAndWhistles() {
-      return "main".equals(name);
+    /** Realm does not need to be treated with jar, javadoc, and all the bells and whistles. */
+    boolean compileOnly() {
+      return "test".equals(name);
     }
 
     @Override
@@ -326,19 +325,28 @@ class Make implements ToolProvider {
         run.log(DEBUG, "No regular modules available to build.");
         return;
       }
+      run.log(DEBUG, "Building %d module(s): %s", regularModules.size(), regularModules);
+      compile(regularModules);
+      if (realm.compileOnly()) {
+        return;
+      }
       try {
-        buildThrowing(regularModules);
+        for (var module : regularModules) {
+          jarModule(module);
+          jarSources(module);
+          // TODO Create "-javadoc.jar" for this regular module
+        }
+        javadoc();
       } catch (Exception e) {
         throw new Error("Building regular modules failed!", e);
       }
     }
 
-    private void buildThrowing(List<String> regularModules) throws Exception {
-      run.log(DEBUG, "Building %d module(s): %s", regularModules.size(), regularModules);
+    private void compile(List<String> modules) {
       var modulePath = new ArrayList<Path>();
-      modulePath.add(realm.packagedModules); // mr-jar
+      modulePath.add(realm.packagedModules); // grab mr-jar's
       modulePath.addAll(realm.modulePath);
-      var args =
+      var javac =
           new Args()
               .with(false, "-verbose")
               .with("-encoding", "UTF-8")
@@ -347,35 +355,37 @@ class Make implements ToolProvider {
               .with("--module-path", modulePath)
               .with("--module-version", version)
               .with("--module-source-path", moduleSourcePath)
-              .with("--module", String.join(",", regularModules));
-      run.tool("javac", args.toStringArray());
-      if (!realm.isWithAllTheBellsAndWhistles()) {
-        return;
-      }
-      // jar compiled and source units
-      for (var module : regularModules) {
-        Files.createDirectories(realm.packagedModules);
-        var modularJar = realm.packagedModules.resolve(module + "@" + version + ".jar");
-        args =
-            new Args()
-                .with(debug, "--verbose")
-                .with("--create")
-                .with("--file", modularJar)
-                .with("-C", realm.compiledModules.resolve(module))
-                .with(".");
-        run.tool("jar", args.toStringArray());
-        Files.createDirectories(realm.packagedSources);
-        var sourcesJar = realm.packagedSources.resolve(module + "@" + version + "-sources.jar");
-        args =
-            new Args()
-                .with(debug, "--verbose")
-                .with("--create")
-                .with("--file", sourcesJar)
-                .with("-C", moduleSourcePath.resolve(module))
-                .with(".");
-        run.tool("jar", args.toStringArray());
-      }
-      // javadoc
+              .with("--module", String.join(",", modules));
+      run.tool("javac", javac.toStringArray());
+    }
+
+    private void jarModule(String module) throws Exception {
+      Files.createDirectories(realm.packagedModules);
+      var modularJar = realm.packagedModules.resolve(module + "@" + version + ".jar");
+      var jar =
+          new Args()
+              .with(debug, "--verbose")
+              .with("--create")
+              .with("--file", modularJar)
+              .with("-C", realm.compiledModules.resolve(module))
+              .with(".");
+      run.tool("jar", jar.toStringArray());
+    }
+
+    private void jarSources(String module) throws Exception {
+      Files.createDirectories(realm.packagedSources);
+      var sourcesJar = realm.packagedSources.resolve(module + "@" + version + "-sources.jar");
+      var jar =
+          new Args()
+              .with(debug, "--verbose")
+              .with("--create")
+              .with("--file", sourcesJar)
+              .with("-C", moduleSourcePath.resolve(module))
+              .with(".");
+      run.tool("jar", jar.toStringArray());
+    }
+
+    private void javadoc() {
       var modules = Util.listDirectoryNames(moduleSourcePath);
       var javaSources = new ArrayList<String>();
       javaSources.add(moduleSourcePath.toString());
@@ -383,7 +393,7 @@ class Make implements ToolProvider {
         var separator = File.separator;
         javaSources.add(moduleSourcePath + separator + "*" + separator + "java-" + release);
       }
-      args =
+      var javadoc =
           new Args()
               .with(false, "-verbose")
               .with("-encoding", "UTF-8")
@@ -393,9 +403,8 @@ class Make implements ToolProvider {
               .with("--module-path", realm.modulePath)
               .with("--module-source-path", String.join(File.pathSeparator, javaSources))
               .with("--module", String.join(",", modules));
-      run.tool("javadoc", args.toStringArray());
-      // TODO Files.createDirectories(realm.packagedJavadoc);
-      // TODO jar compiled javadoc assets
+      run.tool("javadoc", javadoc.toStringArray());
+      // TODO Create "project-javadoc.jar"
     }
   }
 
@@ -410,12 +419,13 @@ class Make implements ToolProvider {
       for (var release = base; release <= Runtime.version().feature(); release++) {
         compile(module, base, release);
       }
-      if (!realm.isWithAllTheBellsAndWhistles()) {
+      if (realm.compileOnly()) {
         return;
       }
       try {
         jarModule(module, base);
         jarSources(module, base);
+        // TODO Create "-javadoc.jar" for this multi-release module
       } catch (Exception e) {
         throw new Error("Jarring module " + module + " failed!", e);
       }
