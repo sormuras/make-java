@@ -161,6 +161,8 @@ class Make implements ToolProvider {
       var args =
           new Args()
               .with(false, "-verbose")
+              .with("-encoding", "UTF-8")
+              .with("-Xlint")
               .with("-d", work.compiledModules)
               .with("--module-path", work.packagedModules)
               .with("--module-version", version)
@@ -197,6 +199,9 @@ class Make implements ToolProvider {
       args =
           new Args()
               .with(false, "-verbose")
+              .with("-encoding", "UTF-8")
+              .with("-quiet")
+              .with("-windowtitle", project + " " +version)
               .with("-d", work.compiledJavadoc)
               .with("--module-source-path", String.join(File.pathSeparator, javaSources))
               .with("--module", String.join(",", modules));
@@ -353,7 +358,12 @@ class Make implements ToolProvider {
         return;
       }
       var destination = work.compiledMulti.resolve(javaR);
-      var javac = new Args().with(false, "-verbose").with("--release", release);
+      var javac =
+          new Args()
+              .with(false, "-verbose")
+              .with("-encoding", "UTF-8")
+              .with("-Xlint")
+              .with("--release", release);
       if (release < 9) {
         javac.with("-d", destination.resolve(module));
         // TODO "-cp" ...
