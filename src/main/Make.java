@@ -160,7 +160,7 @@ class Make implements ToolProvider {
       run.log(DEBUG, "Building %d module(s): %s", regularModules.size(), regularModules);
       var args =
           new Args()
-              .with(debug, "-verbose")
+              .with(false, "-verbose")
               .with("-d", work.compiledModules)
               .with("--module-path", work.packagedModules)
               .with("--module-version", version)
@@ -322,8 +322,8 @@ class Make implements ToolProvider {
       for (var release = base; release <= Runtime.version().feature(); release++) {
         compile(module, base, release);
       }
-      jar(work.packagedModules, module, base, work.compiledMulti, "");
-      jar(work.packagedSources, module, base, home.resolve(realm.source).resolve(module),"-sources");
+      jarModule(module, base);
+      jarSources(module, base);
     }
 
     private void compile(String module, int base, int release) {
@@ -335,7 +335,7 @@ class Make implements ToolProvider {
         return;
       }
       var destination = work.compiledMulti.resolve(javaR);
-      var javac = new Args().with(debug, "-verbose").with("--release", release);
+      var javac = new Args().with(false, "-verbose").with("--release", release);
       if (release < 9) {
         javac.with("-d", destination.resolve(module));
         // TODO "-cp" ...
@@ -355,12 +355,10 @@ class Make implements ToolProvider {
       run.tool("javac", javac.toStringArray());
     }
 
-    private void jar(Path target, String module, int base, Path source, String modifier) {
-      var file = target.resolve(module + '@' + version + modifier + ".jar");
-      var javaBase = source.resolve("java-" + base);
-      if (modifier.isEmpty()) {
-        javaBase = javaBase.resolve(module);
-      }
+    private void jarModule(String module, int base) {
+      var file = work.packagedModules.resolve(module + '@' + version + ".jar");
+      var source = work.compiledMulti;
+      var javaBase = source.resolve("java-" + base).resolve(module);
       var jar =
           new Args()
               .with(debug, "--verbose")
@@ -369,13 +367,34 @@ class Make implements ToolProvider {
               // "base" classes
               .with("-C", javaBase)
               .with(".");
+      // "base" + 1 .. N files
+      for (var release = base + 1; release <= Runtime.version().feature(); release++) {
+        var javaRelease = source.resolve("java-" + release).resolve(module);
+        if (Files.notExists(javaRelease)) {
+          continue;
+        }
+        jar.with("--release", release);
+        jar.with("-C", javaRelease);
+        jar.with(".");
+      }
+      run.tool("jar", jar.toStringArray());
+    }
 
+    private void jarSources(String module, int base) {
+      var file = work.packagedSources.resolve(module + '@' + version + "-sources.jar");
+      var source = home.resolve(realm.source).resolve(module);
+      var javaBase = source.resolve("java-" + base);
+      var jar =
+          new Args()
+              .with(debug, "--verbose")
+              .with("--create")
+              .with("--file", file)
+              // "base" classes
+              .with("-C", javaBase)
+              .with(".");
       // "base" + 1 .. N files
       for (var release = base + 1; release <= Runtime.version().feature(); release++) {
         var javaRelease = source.resolve("java-" + release);
-        if (modifier.isEmpty()) {
-          javaRelease = javaRelease.resolve(module);
-        }
         if (Files.notExists(javaRelease)) {
           continue;
         }
