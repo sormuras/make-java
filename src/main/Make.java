@@ -113,8 +113,10 @@ class Make implements ToolProvider {
       if (debug) {
         var jdeps =
             new Make.Args()
-                .with("--module-path", work.packagedModules)
-                .with("--add-modules", "ALL-MODULE-PATH")
+                .with("--module-path", List.of(work.packagedModules, Path.of("mods")))
+                .with(
+                    "--add-modules",
+                    String.join(",", Util.listDirectoryNames(home.resolve(realms.get(0).source))))
                 .with("--multi-release", "base")
                 .with("-summary");
         run.tool("jdeps", jdeps.toStringArray());
@@ -155,7 +157,7 @@ class Make implements ToolProvider {
         regularModulesIterator.remove();
       }
     }
-    // compile and package regular "jigsaw" modules
+    // compile regular modules
     if (!regularModules.isEmpty()) {
       run.log(DEBUG, "Building %d module(s): %s", regularModules.size(), regularModules);
       var args =
@@ -164,11 +166,15 @@ class Make implements ToolProvider {
               .with("-encoding", "UTF-8")
               .with("-Xlint")
               .with("-d", work.compiledModules)
-              .with("--module-path", work.packagedModules)
+              .with("--module-path", List.of(work.packagedModules, Path.of("mods")))
               .with("--module-version", version)
               .with("--module-source-path", moduleSourcePath)
               .with("--module", String.join(",", regularModules));
       run.tool("javac", args.toStringArray());
+      if (!realm.isWithAllTheBellsAndWhistles()) {
+        return;
+      }
+      // jar compiled and source units
       for (var module : regularModules) {
         var modularJar = work.packagedModules.resolve(module + "@" + version + ".jar");
         args =
@@ -192,17 +198,18 @@ class Make implements ToolProvider {
       // javadoc
       var javaSources = new ArrayList<String>();
       javaSources.add(moduleSourcePath.toString());
-      for (var release = Runtime.version().feature(); release >= 7; release--) {
-        javaSources.add(
-            String.join(File.separator, moduleSourcePath.toString(), "*", "java-" + release));
+      for (var release = 7; release <= Runtime.version().feature(); release++) {
+        var separator = File.separator;
+        javaSources.add(moduleSourcePath + separator + "*" + separator + "java-" + release);
       }
       args =
           new Args()
               .with(false, "-verbose")
               .with("-encoding", "UTF-8")
               .with("-quiet")
-              .with("-windowtitle", project + " " +version)
+              .with("-windowtitle", project + " " + version)
               .with("-d", work.compiledJavadoc)
+              .with("--module-path", List.of(work.packagedModules, Path.of("mods")))
               .with("--module-source-path", String.join(File.pathSeparator, javaSources))
               .with("--module", String.join(",", modules));
       run.tool("javadoc", args.toStringArray());
@@ -247,6 +254,13 @@ class Make implements ToolProvider {
     /** Add two arguments by invoking {@link #with(Object)} for the key and value elements. */
     Args with(Object key, Object value) {
       return with(key).with(value);
+    }
+
+    /** Add two arguments, i.e. the key and the paths joined by system's path separator. */
+    Args with(Object key, List<Path> paths) {
+      var value =
+          paths.stream().map(Object::toString).collect(Collectors.joining(File.pathSeparator));
+      return with(key, value);
     }
 
     /** Add all arguments by invoking {@link #with(Object)} for each element. */
@@ -311,6 +325,7 @@ class Make implements ToolProvider {
     static Realm of(Path home, String name) {
       var source =
           Util.findFirstDirectory(home, "src/" + name + "/java", "src/" + name, name)
+              .map(home::relativize)
               .orElseThrow(() -> new Error("Couldn't find module source path!"));
       return new Realm(name, source);
     }
@@ -323,6 +338,11 @@ class Make implements ToolProvider {
     Realm(String name, Path source) {
       this.name = name;
       this.source = source;
+    }
+
+    /** Realm needs to be treated with jar and javadoc and all the bells and whistles. */
+    boolean isWithAllTheBellsAndWhistles() {
+      return "main".equals(name);
     }
 
     @Override
@@ -345,8 +365,10 @@ class Make implements ToolProvider {
       for (var release = base; release <= Runtime.version().feature(); release++) {
         compile(module, base, release);
       }
-      jarModule(module, base);
-      jarSources(module, base);
+      if (realm.isWithAllTheBellsAndWhistles()) {
+        jarModule(module, base);
+        jarSources(module, base);
+      }
     }
 
     private void compile(String module, int base, int release) {
@@ -371,7 +393,7 @@ class Make implements ToolProvider {
       } else {
         javac.with("-d", destination);
         javac.with("--module-version", version);
-        // TODO javac.with("--module-path", ...);
+        javac.with("--module-path", List.of(Path.of("mods")));
         var pathR = moduleSourcePath + File.separator + "*" + File.separator + javaR;
         var sources = List.of(pathR, "" + moduleSourcePath);
         javac.with("--module-source-path", String.join(File.pathSeparator, sources));

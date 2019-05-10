@@ -3,6 +3,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertLinesMatch;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -86,6 +87,29 @@ class DemoTests {
               "com/greetings/Main.java",
               "module-info.java",
               "Tool 'jar' successfully executed."),
+          debug.lines());
+    }
+
+    @Test
+    void greetingsWorldWithMainAndTest(@TempDir Path work) {
+      var home = Path.of("demo", "jigsaw-quick-start", "greetings-world-with-main-and-test");
+      var main = Make.Realm.of(home, "main");
+      var test = Make.Realm.of(home, "test");
+      var make = new Make(true, false, "GWwMaT", "0", home, work, List.of(main, test));
+      var debug = DebugRun.newInstance();
+      assertEquals(0, make.run(debug), debug.toString());
+      assertLinesMatch(
+          List.of(
+              "Make.java - " + Make.VERSION,
+              "  args = []",
+              "  java = " + Runtime.version(),
+              "Building project 'GWwMaT', version 0...",
+              "  home = " + home.toUri(),
+              "  work = " + work.toUri(),
+              "  realms[0] = Realm{name=main, source=src" + File.separator + "main}",
+              "  realms[1] = Realm{name=test, source=src" + File.separator + "test}",
+              ">> BUILD >>",
+              "Build successful after \\d+ ms\\."),
           debug.lines());
     }
   }
