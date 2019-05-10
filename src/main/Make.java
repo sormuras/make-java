@@ -119,6 +119,9 @@ class Make implements ToolProvider {
                 .with("-summary");
         run.tool("jdeps", jdeps.toStringArray());
       }
+      // TODO Launch JUnit Platform
+      // TODO Run "javadoc" tool for each module
+      // TODO Create "-javadoc.jar"
       run.log(INFO, "Build successful after %d ms.", run.toDurationMillis());
       return 0;
     } catch (Throwable t) {
@@ -139,6 +142,7 @@ class Make implements ToolProvider {
       throw new Error("No module directories found in source path: " + moduleSourcePath);
     }
     Files.createDirectories(work.packagedModules);
+    Files.createDirectories(work.packagedSources);
     // multi-release modules
     var regularModules = new ArrayList<>(modules);
     var regularModulesIterator = regularModules.listIterator();
@@ -164,13 +168,22 @@ class Make implements ToolProvider {
               .with("--module", String.join(",", regularModules));
       run.tool("javac", args.toStringArray());
       for (var module : regularModules) {
-        var file = work.packagedModules.resolve(module + "@" + version + ".jar");
+        var modularJar = work.packagedModules.resolve(module + "@" + version + ".jar");
         args =
             new Args()
                 .with(debug, "--verbose")
                 .with("--create")
-                .with("--file", file)
+                .with("--file", modularJar)
                 .with("-C", work.compiledModules.resolve(module))
+                .with(".");
+        run.tool("jar", args.toStringArray());
+        var sourcesJar = work.packagedSources.resolve(module + "@" + version + "-sources.jar");
+        args =
+            new Args()
+                .with(debug, "--verbose")
+                .with("--create")
+                .with("--file", sourcesJar)
+                .with("-C", moduleSourcePath.resolve(module))
                 .with(".");
         run.tool("jar", args.toStringArray());
       }
@@ -184,6 +197,7 @@ class Make implements ToolProvider {
     final Path compiledModules;
     final Path compiledMulti;
     final Path packagedModules;
+    final Path packagedSources;
 
     Work(Path base) {
       this.base = base;
@@ -191,6 +205,7 @@ class Make implements ToolProvider {
       compiledModules = compiledBase.resolve("modules");
       compiledMulti = compiledBase.resolve("multi-releases");
       packagedModules = base.resolve("modules");
+      packagedSources = base.resolve("sources");
     }
   }
 
@@ -305,12 +320,13 @@ class Make implements ToolProvider {
     void build(String module) {
       int base = 8; // TODO Find declared low base number: "java-*"
       for (var release = base; release <= Runtime.version().feature(); release++) {
-        compileMultiReleaseModule(module, base, release);
+        compile(module, base, release);
       }
-      packageMultiReleaseModule(module, base);
+      jar(work.packagedModules, module, base, work.compiledMulti, "");
+      jar(work.packagedSources, module, base, home.resolve(realm.source).resolve(module),"-sources");
     }
 
-    private void compileMultiReleaseModule(String module, int base, int release) {
+    private void compile(String module, int base, int release) {
       var moduleSourcePath = home.resolve(realm.source);
       var javaR = "java-" + release;
       var source = moduleSourcePath.resolve(module).resolve(javaR);
@@ -339,25 +355,32 @@ class Make implements ToolProvider {
       run.tool("javac", javac.toStringArray());
     }
 
-    private void packageMultiReleaseModule(String module, int base) {
-      var file = work.packagedModules.resolve(module + '@' + VERSION + ".jar");
+    private void jar(Path target, String module, int base, Path source, String modifier) {
+      var file = target.resolve(module + '@' + version + modifier + ".jar");
+      var javaBase = source.resolve("java-" + base);
+      if (modifier.isEmpty()) {
+        javaBase = javaBase.resolve(module);
+      }
       var jar =
           new Args()
               .with(debug, "--verbose")
               .with("--create")
               .with("--file", file)
               // "base" classes
-              .with("-C", work.compiledMulti.resolve("java-" + base).resolve(module))
+              .with("-C", javaBase)
               .with(".");
 
-      // "base" + 1 .. N classes
+      // "base" + 1 .. N files
       for (var release = base + 1; release <= Runtime.version().feature(); release++) {
-        var path = work.compiledMulti.resolve("java-" + release).resolve(module);
-        if (Files.notExists(path)) {
+        var javaRelease = source.resolve("java-" + release);
+        if (modifier.isEmpty()) {
+          javaRelease = javaRelease.resolve(module);
+        }
+        if (Files.notExists(javaRelease)) {
           continue;
         }
         jar.with("--release", release);
-        jar.with("-C", path);
+        jar.with("-C", javaRelease);
         jar.with(".");
       }
       run.tool("jar", jar.toStringArray());

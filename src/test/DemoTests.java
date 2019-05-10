@@ -38,9 +38,27 @@ class DemoTests {
       assertTrue(Files.isDirectory(exploded));
       assertTrue(Files.isRegularFile(exploded.resolve("module-info.class")));
       assertTrue(Files.isRegularFile(exploded.resolve("com/greetings/Main.class")));
-      var jar = make.work.packagedModules.resolve("com.greetings@47.11.jar");
-      assertTrue(Files.isRegularFile(jar), "file not found: " + jar);
-      debug.tool("jar", "--describe-module", "--file", jar.toString());
+
+      assertLinesMatch(
+          List.of(
+              "compiled",
+              "compiled/modules",
+              "compiled/modules/com.greetings",
+              "compiled/modules/com.greetings/com",
+              "compiled/modules/com.greetings/com/greetings",
+              "compiled/modules/com.greetings/com/greetings/Main.class",
+              "compiled/modules/com.greetings/module-info.class",
+              "javadoc",
+              "modules",
+              "modules/com.greetings@47.11.jar",
+              "sources",
+              "sources/com.greetings@47.11-sources.jar"),
+          DebugRun.treeWalk(work));
+      var modularJar = make.work.packagedModules.resolve("com.greetings@47.11.jar");
+      var sourcesJar = make.work.packagedSources.resolve("com.greetings@47.11-sources.jar");
+
+      debug.tool("jar", "--describe-module", "--file", modularJar.toString());
+      debug.tool("jar", "--list", "--file", sourcesJar.toString());
       assertLinesMatch(
           List.of(
               "Make.java - " + Make.VERSION,
@@ -52,11 +70,19 @@ class DemoTests {
               "  realms[0] = Realm{name=main, source=src}",
               ">> BUILD >>",
               "Build successful after \\d+ ms\\.",
-              "Running tool 'jar' with: [--describe-module, --file, " + jar + "]",
+              "Running tool 'jar' with: [--describe-module, --file, " + modularJar + "]",
               "com.greetings@47.11 jar:file:.+module-info.class",
               "requires java.base mandated",
               "contains com.greetings",
               "",
+              "Tool 'jar' successfully executed.",
+              "Running tool 'jar' with: [--list, --file, " + sourcesJar + "]",
+              "META-INF/",
+              "META-INF/MANIFEST.MF",
+              "com/",
+              "com/greetings/",
+              "com/greetings/Main.java",
+              "module-info.java",
               "Tool 'jar' successfully executed."),
           debug.lines());
     }
