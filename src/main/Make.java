@@ -120,8 +120,7 @@ class Make implements ToolProvider {
         run.tool("jdeps", jdeps.toStringArray());
       }
       // TODO Launch JUnit Platform
-      // TODO Run "javadoc" tool for each module
-      // TODO Create "-javadoc.jar"
+      // TODO Create "-javadoc.jar" for each module
       run.log(INFO, "Build successful after %d ms.", run.toDurationMillis());
       return 0;
     } catch (Throwable t) {
@@ -141,6 +140,7 @@ class Make implements ToolProvider {
     if (modules.isEmpty()) {
       throw new Error("No module directories found in source path: " + moduleSourcePath);
     }
+    Files.createDirectories(work.packagedJavadoc);
     Files.createDirectories(work.packagedModules);
     Files.createDirectories(work.packagedSources);
     // multi-release modules
@@ -187,6 +187,20 @@ class Make implements ToolProvider {
                 .with(".");
         run.tool("jar", args.toStringArray());
       }
+      // javadoc
+      var javaSources = new ArrayList<String>();
+      javaSources.add(moduleSourcePath.toString());
+      for (var release = Runtime.version().feature(); release >= 7; release--) {
+        javaSources.add(
+            String.join(File.separator, moduleSourcePath.toString(), "*", "java-" + release));
+      }
+      args =
+          new Args()
+              .with(false, "-verbose")
+              .with("-d", work.compiledJavadoc)
+              .with("--module-source-path", String.join(File.pathSeparator, javaSources))
+              .with("--module", String.join(",", modules));
+      run.tool("javadoc", args.toStringArray());
     }
   }
 
@@ -194,16 +208,20 @@ class Make implements ToolProvider {
   class Work {
     final Path base;
     final Path compiledBase;
+    final Path compiledJavadoc;
     final Path compiledModules;
     final Path compiledMulti;
+    final Path packagedJavadoc;
     final Path packagedModules;
     final Path packagedSources;
 
     Work(Path base) {
       this.base = base;
       compiledBase = base.resolve("compiled");
+      compiledJavadoc = compiledBase.resolve("javadoc");
       compiledModules = compiledBase.resolve("modules");
-      compiledMulti = compiledBase.resolve("multi-releases");
+      compiledMulti = compiledBase.resolve("multi-release");
+      packagedJavadoc = base.resolve("javadoc");
       packagedModules = base.resolve("modules");
       packagedSources = base.resolve("sources");
     }

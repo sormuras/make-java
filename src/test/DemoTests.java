@@ -42,6 +42,8 @@ class DemoTests {
       assertLinesMatch(
           List.of(
               "compiled",
+              "compiled/javadoc",
+              ">> JAVADOC >>",
               "compiled/modules",
               "compiled/modules/com.greetings",
               "compiled/modules/com.greetings/com",
