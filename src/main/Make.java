@@ -449,11 +449,7 @@ class Make implements ToolProvider {
 
     /** Test supplied path for pointing to a regular Java archive file. */
     static boolean isJarFile(Path path) {
-      if (Files.isRegularFile(path)) {
-        var name = path.getFileName().toString();
-        return name.endsWith(".java");
-      }
-      return false;
+      return Files.isRegularFile(path) && path.getFileName().toString().endsWith(".jar");
     }
 
     /** Return list of child directories directly present in {@code root} path. */
