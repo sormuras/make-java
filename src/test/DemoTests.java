@@ -19,15 +19,14 @@ class DemoTests {
     @Test
     void greetings(@TempDir Path work) {
       var home = Path.of("demo", "jigsaw-quick-start", "greetings");
-      var main = new Make.Realm("main", Path.of("src"));
-      var make = new Make(true, false, "greetings", "47.11", home, work, List.of(main));
+      var main = new Make.Realm("main", Path.of("src"), work, List.of());
+      var make = new Make(true, false, "greetings", "47.11", home, List.of(main));
 
       assertTrue(make.debug);
       assertFalse(make.dryRun);
       assertEquals("greetings", make.project);
       assertEquals("47.11", make.version);
       assertEquals(home, make.home);
-      assertEquals(work, make.work.base);
       assertEquals(1, make.realms.size());
 
       assertTrue(Files.isDirectory(make.home.resolve(main.source).resolve("com.greetings")));
@@ -35,30 +34,30 @@ class DemoTests {
       var debug = DebugRun.newInstance();
       assertEquals(0, make.run(debug), debug.toString());
 
-      var exploded = make.work.compiledModules.resolve("com.greetings");
+      var exploded = main.compiledModules.resolve("com.greetings");
       assertTrue(Files.isDirectory(exploded));
       assertTrue(Files.isRegularFile(exploded.resolve("module-info.class")));
       assertTrue(Files.isRegularFile(exploded.resolve("com/greetings/Main.class")));
 
       assertLinesMatch(
           List.of(
-              "compiled",
-              "compiled/javadoc",
+              "main",
+              "main/compiled",
+              "main/compiled/javadoc",
               ">> JAVADOC >>",
-              "compiled/modules",
-              "compiled/modules/com.greetings",
-              "compiled/modules/com.greetings/com",
-              "compiled/modules/com.greetings/com/greetings",
-              "compiled/modules/com.greetings/com/greetings/Main.class",
-              "compiled/modules/com.greetings/module-info.class",
-              "javadoc",
-              "modules",
-              "modules/com.greetings@47.11.jar",
-              "sources",
-              "sources/com.greetings@47.11-sources.jar"),
+              "main/compiled/modules",
+              "main/compiled/modules/com.greetings",
+              "main/compiled/modules/com.greetings/com",
+              "main/compiled/modules/com.greetings/com/greetings",
+              "main/compiled/modules/com.greetings/com/greetings/Main.class",
+              "main/compiled/modules/com.greetings/module-info.class",
+              "main/modules",
+              "main/modules/com.greetings@47.11.jar",
+              "main/sources",
+              "main/sources/com.greetings@47.11-sources.jar"),
           DebugRun.treeWalk(work));
-      var modularJar = make.work.packagedModules.resolve("com.greetings@47.11.jar");
-      var sourcesJar = make.work.packagedSources.resolve("com.greetings@47.11-sources.jar");
+      var modularJar = main.packagedModules.resolve("com.greetings@47.11.jar");
+      var sourcesJar = main.packagedSources.resolve("com.greetings@47.11-sources.jar");
 
       debug.tool("jar", "--describe-module", "--file", modularJar.toString());
       debug.tool("jar", "--list", "--file", sourcesJar.toString());
@@ -69,7 +68,6 @@ class DemoTests {
               "  java = " + Runtime.version(),
               "Building project 'greetings', version 47.11...",
               "  home = " + home.toUri(),
-              "  work = " + work.toUri(),
               "  realms[0] = Realm{name=main, source=src}",
               ">> BUILD >>",
               "Build successful after \\d+ ms\\.",
@@ -93,9 +91,9 @@ class DemoTests {
     @Test
     void greetingsWorldWithMainAndTest(@TempDir Path work) {
       var home = Path.of("demo", "jigsaw-quick-start", "greetings-world-with-main-and-test");
-      var main = Make.Realm.of(home, "main");
-      var test = Make.Realm.of(home, "test");
-      var make = new Make(true, false, "GWwMaT", "0", home, work, List.of(main, test));
+      var main = Make.Realm.of("main", home, work);
+      var test = Make.Realm.of("test", home, work, main);
+      var make = new Make(true, false, "GWwMaT", "0", home, List.of(main, test));
       var debug = DebugRun.newInstance();
       assertEquals(0, make.run(debug), debug.toString());
       assertLinesMatch(
@@ -105,7 +103,6 @@ class DemoTests {
               "  java = " + Runtime.version(),
               "Building project 'GWwMaT', version 0...",
               "  home = " + home.toUri(),
-              "  work = " + work.toUri(),
               "  realms[0] = Realm{name=main, source=src" + File.separator + "main}",
               "  realms[1] = Realm{name=test, source=src" + File.separator + "test}",
               ">> BUILD >>",

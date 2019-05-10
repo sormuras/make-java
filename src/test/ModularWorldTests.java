@@ -38,11 +38,10 @@ class ModularWorldTests {
   private void build(Path home) throws Exception {
     var project = home.getFileName().toString();
     var version = "0-TEST";
-    var work = home.resolve("work");
-    var main = Make.Realm.of(home, "main");
+    var main = Make.Realm.of("main", home, home.resolve("work"));
 
     var debug = DebugRun.newInstance();
-    var make = new Make(true, false, project, version, home, work, List.of(main));
+    var make = new Make(true, false, project, version, home, List.of(main));
     assertEquals(0, make.run(debug), debug + "\n" + String.join("\n", DebugRun.treeWalk(home)));
     var expectedLines = new ArrayList<>(List.of("Make.java - " + Make.VERSION, ">> BUILD >>"));
     expectedLines.add("Running tool 'jdeps' with.+");
