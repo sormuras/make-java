@@ -44,8 +44,16 @@ class Make implements ToolProvider {
     var dryRun = Boolean.getBoolean("ry-run");
     var project = System.getProperty("project.name", home.getFileName().toString());
     var version = System.getProperty("project.version", "1.0.0-SNAPSHOT");
-    var main = Realm.of("main", home, home.resolve("work"));
-    return new Make(debug, dryRun, project, version, home, List.of(main));
+    var work = home.resolve("work");
+    var main = Realm.of("main", home, work);
+    var realms = new ArrayList<Realm>();
+    realms.add(main);
+    try {
+      realms.add(Realm.of("test", home, work, main));
+    } catch (Exception e) {
+      // ignore missing test realm...
+    }
+    return new Make(debug, dryRun, project, version, home, realms);
   }
 
   /** Debug flag. */
