@@ -434,7 +434,7 @@ class Make implements ToolProvider {
 
     private void jarModule(String module) throws Exception {
       Files.createDirectories(realm.packagedModules);
-      var modularJar = realm.packagedModules.resolve(module + "@" + version + ".jar");
+      var modularJar = realm.packagedModules.resolve(module + '-' + version + ".jar");
       var jar =
           new Args()
               .with(debug, "--verbose")
@@ -447,7 +447,7 @@ class Make implements ToolProvider {
 
     private void jarSources(String module) throws Exception {
       Files.createDirectories(realm.packagedSources);
-      var sourcesJar = realm.packagedSources.resolve(module + "@" + version + "-sources.jar");
+      var sourcesJar = realm.packagedSources.resolve(module + '-' + version + "-sources.jar");
       var jar =
           new Args()
               .with(debug, "--verbose")
@@ -540,7 +540,7 @@ class Make implements ToolProvider {
 
     private void jarModule(String module, int base) throws Exception {
       Files.createDirectories(realm.packagedModules);
-      var file = realm.packagedModules.resolve(module + '@' + version + ".jar");
+      var file = realm.packagedModules.resolve(module + '-' + version + ".jar");
       var source = realm.compiledMulti;
       var javaBase = source.resolve("java-" + base).resolve(module);
       var jar =
@@ -566,7 +566,7 @@ class Make implements ToolProvider {
 
     private void jarSources(String module, int base) throws Exception {
       Files.createDirectories(realm.packagedSources);
-      var file = realm.packagedSources.resolve(module + '@' + version + "-sources.jar");
+      var file = realm.packagedSources.resolve(module + '-' + version + "-sources.jar");
       var source = home.resolve(realm.source).resolve(module);
       var javaBase = source.resolve("java-" + base);
       var jar =

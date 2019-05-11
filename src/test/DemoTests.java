@@ -52,12 +52,12 @@ class DemoTests {
               "main/compiled/modules/com.greetings/com/greetings/Main.class",
               "main/compiled/modules/com.greetings/module-info.class",
               "main/modules",
-              "main/modules/com.greetings@47.11.jar",
+              "main/modules/com.greetings-47.11.jar",
               "main/sources",
-              "main/sources/com.greetings@47.11-sources.jar"),
+              "main/sources/com.greetings-47.11-sources.jar"),
           DebugRun.treeWalk(work));
-      var modularJar = main.packagedModules.resolve("com.greetings@47.11.jar");
-      var sourcesJar = main.packagedSources.resolve("com.greetings@47.11-sources.jar");
+      var modularJar = main.packagedModules.resolve("com.greetings-47.11.jar");
+      var sourcesJar = main.packagedSources.resolve("com.greetings-47.11-sources.jar");
 
       debug.tool("jar", "--describe-module", "--file", modularJar.toString());
       debug.tool("jar", "--list", "--file", sourcesJar.toString());
