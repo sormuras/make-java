@@ -171,8 +171,17 @@ class Make implements ToolProvider {
     modulePath.addAll(realm.modulePath);
     modulePath.add(Path.of("lib", realm.name + "-runtime-only"));
     var addModules = String.join(",", Util.listDirectoryNames(home.resolve(realm.source)));
-    var java = new Args().with("--module-path", modulePath).with("--add-modules", addModules);
-    run.junit(java, "--fail-if-no-tests", "--scan-modules");
+    var java =
+        new Args()
+            .with("--show-version")
+            .with("--module-path", modulePath)
+            .with("--add-modules", addModules);
+    var args =
+        new Args()
+            .with("--fail-if-no-tests")
+            .with("--reports-dir", realm.target.resolve("junit-reports"))
+            .with("--scan-modules");
+    run.junit(java, args.toStringArray());
   }
 
   /** Command-line program argument list builder. */
