@@ -3,19 +3,32 @@ package integration;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import org.astro.World;
 import org.junit.jupiter.api.Test;
 
 class IntegrationTests {
 
   @Test
   void accessWorld() {
-    assertEquals("world", World.name());
+    assertEquals("world", org.astro.World.name());
   }
 
   @Test
-  void accessGreetings() {
-    // assertEquals("Main", com.greetings.Main.class.getSimpleName()); // Does not compile!
-    assertThrows(Throwable.class, () -> Class.forName("com.greetings.Main").getSimpleName());
+  void accessGreetings() throws ClassNotFoundException {
+    // assertEquals("Main", com.greetings.Main.class.getSimpleName()); // Does not even compile!
+
+    var main = Class.forName("com.greetings.Main"); // Loading a hidden class is "okay"...
+
+    var exception =
+        assertThrows(
+            IllegalAccessException.class,
+            () -> main.getMethod("main", String[].class).invoke(null, null));
+
+    assertEquals(
+        "class integration.IntegrationTests (in module integration)"
+            + " cannot access class com.greetings.Main (in module com.greetings)"
+            + " because module com.greetings"
+            + " does not export com.greetings"
+            + " to module integration",
+        exception.getMessage());
   }
 }
