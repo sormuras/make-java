@@ -282,8 +282,10 @@ class Make implements ToolProvider {
       command.addAll(java);
       command.with("-jar", jar).withEach(List.of(args));
       log(DEBUG, "JUnit: %s", command);
-      var process = new ProcessBuilder(command.toStringArray()).inheritIO().start();
+      var process = new ProcessBuilder(command.toStringArray()).start();
       var code = process.waitFor();
+      out.print(new String(process.getInputStream().readAllBytes()));
+      err.print(new String(process.getErrorStream().readAllBytes()));
       if (code != 0) {
         throw new AssertionError("JUnit run exited with code " + code);
       }

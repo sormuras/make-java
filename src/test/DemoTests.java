@@ -106,6 +106,11 @@ class DemoTests {
               "  realms[0] = Realm{name=main, source=src" + File.separator + "main}",
               "  realms[1] = Realm{name=test, source=src" + File.separator + "test}",
               ">> BUILD >>",
+              "JUnit.+",
+              ">> TEST + SUMMARY >>",
+              "[         3 tests successful      ]",
+              "[         0 tests failed          ]",
+              "",
               "Build successful after \\d+ ms\\."),
           debug.lines());
     }
