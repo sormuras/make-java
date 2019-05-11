@@ -5,8 +5,10 @@ import static java.lang.System.Logger.Level.WARNING;
 
 import java.io.File;
 import java.io.PrintWriter;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -169,8 +171,7 @@ class Make implements ToolProvider {
     modulePath.addAll(realm.modulePath);
     modulePath.add(Path.of("lib", realm.name + "-runtime-only"));
     var addModules = String.join(",", Util.listDirectoryNames(home.resolve(realm.source)));
-    var java =
-        new Args().with("--module-path", modulePath).with("--add-modules", addModules);
+    var java = new Args().with("--module-path", modulePath).with("--add-modules", addModules);
     run.junit(java, "--fail-if-no-tests", "--scan-modules");
   }
 
@@ -252,32 +253,21 @@ class Make implements ToolProvider {
       throw new Error("Tool '" + name + "' execution failed with error code: " + code);
     }
 
+    /** Download named tool from given uri. */
+    Path load(String name, URI uri) throws Exception {
+      var user = Path.of(System.getProperty("user.home"));
+      var tool = Path.of(".bach", "tool", name);
+      return Util.download(Boolean.getBoolean("offline"), user.resolve(tool), uri);
+    }
+
     /** Run JUnit Platform Console Launcher from Standalone distribution. */
     void junit(Args java, String... args) throws Exception {
-      // TODO Download junit-platform-console-standalone on-the-fly...
       var version = "1.5.0-M1";
       var name = "junit-platform-console-standalone";
-      // var root = "https://repo1.maven.org/maven2";
+      var root = "https://repo1.maven.org/maven2";
       var file = name + "-" + version + ".jar";
-      // var uri = String.join("/", root, "org/junit/platform", name, version, file);
-      var jar = Path.of(".make", "tool", "junit", file);
-      // var parent = ClassLoader.getPlatformClassLoader();
-      // var loader = new URLClassLoader("junit-loader", new URL[] {jar.toUri().toURL()}, parent);
-      // var launcher = loader.loadClass("org.junit.platform.console.ConsoleLauncher");
-      // var execute =
-      //     launcher.getMethod("execute", PrintStream.class, PrintStream.class, String[].class);
-      // var context = Thread.currentThread().getContextClassLoader();
-      // Object result;
-      // try {
-      //   Thread.currentThread().setContextClassLoader(loader);
-      //   result = execute.invoke(null, System.out, System.err, args);
-      // } catch (Throwable t) {
-      //   throw new Error("ConsoleLauncher.execute(...) failed: " + t, t);
-      // }
-      // finally{
-      //   Thread.currentThread().setContextClassLoader(context);
-      // }
-      // var code = (int) result.getClass().getMethod("getExitCode").invoke(result);
+      var uri = String.join("/", root, "org/junit/platform", name, version, file);
+      var jar = load("junit", URI.create(uri));
       var program = ProcessHandle.current().info().command().map(Path::of).orElseThrow();
       var command = new Args().with(program);
       command.addAll(java);
@@ -587,6 +577,54 @@ class Make implements ToolProvider {
     /** No instance permitted. */
     Util() {
       throw new Error();
+    }
+
+    /** Download file from supplied uri to specified destination directory. */
+    static Path download(boolean offline, Path folder, URI uri) throws Exception {
+      // logger.accept("download(" + uri + ")");
+      var fileName = extractFileName(uri);
+      var target = Files.createDirectories(folder).resolve(fileName);
+      var url = uri.toURL();
+      if (offline) {
+        if (Files.exists(target)) {
+          // logger.accept("Offline mode is active and target already exists.");
+          return target;
+        }
+        throw new IllegalStateException("Target is missing and being offline: " + target);
+      }
+      var connection = url.openConnection();
+      try (var sourceStream = connection.getInputStream()) {
+        var millis = connection.getLastModified();
+        var lastModified = FileTime.fromMillis(millis == 0 ? System.currentTimeMillis() : millis);
+        if (Files.exists(target)) {
+          // logger.accept("Local target file exists. Comparing last modified timestamps...");
+          var fileModified = Files.getLastModifiedTime(target);
+          // logger.accept(" o Remote Last Modified -> " + lastModified);
+          // logger.accept(" o Target Last Modified -> " + fileModified);
+          if (fileModified.equals(lastModified)) {
+            // logger.accept(String.format("Already downloaded %s previously.", fileName));
+            return target;
+          }
+          // logger.accept("Local target file differs from remote source -- replacing it...");
+        }
+        // logger.accept("Transferring " + uri);
+        try (var targetStream = Files.newOutputStream(target)) {
+          sourceStream.transferTo(targetStream);
+        }
+        Files.setLastModifiedTime(target, lastModified);
+        // logger.accept(String.format(" o Remote   -> %s", uri));
+        // logger.accept(String.format(" o Target   -> %s", target.toUri()));
+        // logger.accept(String.format(" o Modified -> %s", lastModified));
+        // logger.accept(String.format(" o Size     -> %d bytes", Files.size(target)));
+        // logger.accept(String.format("Downloaded %s successfully.", fileName));
+      }
+      return target;
+    }
+
+    /** Extract last path element from the supplied uri. */
+    static String extractFileName(URI uri) {
+      var path = uri.getPath(); // strip query and fragment elements
+      return path.substring(path.lastIndexOf('/') + 1);
     }
 
     /** Find first subdirectory below the given home path. */
