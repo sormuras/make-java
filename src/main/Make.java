@@ -118,7 +118,12 @@ class Make implements ToolProvider {
                 .with("-summary");
         run.tool("jdeps", jdeps.toStringArray());
       }
-      // TODO Launch JUnit Platform
+      // Launch JUnit Platform
+      for (var realm : realms) {
+        if (realm.containsTests()) {
+          junit(run, realm);
+        }
+      }
       run.log(INFO, "Build successful after %d ms.", run.toDurationMillis());
       return 0;
     } catch (Throwable t) {
@@ -152,6 +157,21 @@ class Make implements ToolProvider {
     }
     var moduleBuilder = new ModuleBuilder(run, realm);
     moduleBuilder.build(regularModules);
+  }
+
+  private void junit(Run run, Realm realm) throws Exception {
+    if (!realm.containsTests()) {
+      run.log(WARNING, "Realm %s is not configured to contain tests...", realm.name);
+      return;
+    }
+    var modulePath = new ArrayList<Path>();
+    modulePath.add(realm.compiledModules);
+    modulePath.addAll(realm.modulePath);
+    modulePath.add(Path.of("lib", realm.name + "-runtime-only"));
+    var addModules = String.join(",", Util.listDirectoryNames(home.resolve(realm.source)));
+    var java =
+        new Args().with("--module-path", modulePath).with("--add-modules", addModules);
+    run.junit(java, "--fail-if-no-tests", "--scan-modules");
   }
 
   /** Command-line program argument list builder. */
@@ -232,6 +252,44 @@ class Make implements ToolProvider {
       throw new Error("Tool '" + name + "' execution failed with error code: " + code);
     }
 
+    /** Run JUnit Platform Console Launcher from Standalone distribution. */
+    void junit(Args java, String... args) throws Exception {
+      // TODO Download junit-platform-console-standalone on-the-fly...
+      var version = "1.5.0-M1";
+      var name = "junit-platform-console-standalone";
+      // var root = "https://repo1.maven.org/maven2";
+      var file = name + "-" + version + ".jar";
+      // var uri = String.join("/", root, "org/junit/platform", name, version, file);
+      var jar = Path.of(".make", "tool", "junit", file);
+      // var parent = ClassLoader.getPlatformClassLoader();
+      // var loader = new URLClassLoader("junit-loader", new URL[] {jar.toUri().toURL()}, parent);
+      // var launcher = loader.loadClass("org.junit.platform.console.ConsoleLauncher");
+      // var execute =
+      //     launcher.getMethod("execute", PrintStream.class, PrintStream.class, String[].class);
+      // var context = Thread.currentThread().getContextClassLoader();
+      // Object result;
+      // try {
+      //   Thread.currentThread().setContextClassLoader(loader);
+      //   result = execute.invoke(null, System.out, System.err, args);
+      // } catch (Throwable t) {
+      //   throw new Error("ConsoleLauncher.execute(...) failed: " + t, t);
+      // }
+      // finally{
+      //   Thread.currentThread().setContextClassLoader(context);
+      // }
+      // var code = (int) result.getClass().getMethod("getExitCode").invoke(result);
+      var program = ProcessHandle.current().info().command().map(Path::of).orElseThrow();
+      var command = new Args().with(program);
+      command.addAll(java);
+      command.with("-jar", jar).withEach(List.of(args));
+      log(DEBUG, "JUnit: %s", command);
+      var process = new ProcessBuilder(command.toStringArray()).inheritIO().start();
+      var code = process.waitFor();
+      if (code != 0) {
+        throw new AssertionError("JUnit run exited with code " + code);
+      }
+    }
+
     long toDurationMillis() {
       return TimeUnit.MILLISECONDS.convert(Duration.between(start, Instant.now()));
     }
@@ -248,6 +306,7 @@ class Make implements ToolProvider {
       var modulePath = new ArrayList<Path>();
       for (var required : requiredRealms) {
         modulePath.add(required.packagedModules);
+        modulePath.addAll(required.modulePath);
       }
       var lib = Path.of("lib", name);
       if (Files.isDirectory(lib)) {
@@ -291,6 +350,11 @@ class Make implements ToolProvider {
 
     /** Realm does not need to be treated with jar, javadoc, and all the bells and whistles. */
     boolean compileOnly() {
+      return "test".equals(name);
+    }
+
+    /** Launch JUnit Platform for this realm. */
+    boolean containsTests() {
       return "test".equals(name);
     }
 
