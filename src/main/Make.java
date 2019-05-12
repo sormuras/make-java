@@ -15,7 +15,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -125,22 +127,54 @@ class Make implements ToolProvider {
   }
 
   /** Sequentially build all realms. */
-  private void build(Run run) {
+  private void build(Run run) throws Exception {
     for (var realm : realms) {
+      var moduleSourcePath = home.resolve(realm.source);
+      if (Files.notExists(moduleSourcePath)) {
+        run.log(WARNING, "Source path of %s realm not found: %s", realm.name, moduleSourcePath);
+        return;
+      }
+      if (realm.modules.isEmpty()) {
+        throw new Error("No modules found in source path: " + moduleSourcePath);
+      }
+      assemble(run, realm);
       build(run, realm);
     }
   }
 
+  /** Assemble assets and check preconditions. */
+  private void assemble(Run run, Realm realm) throws Exception {
+    run.log(DEBUG, "Assembling assets for %s realm...", realm.name);
+    var offline = Boolean.getBoolean("offline");
+    var libraries = home.resolve(realm.libraries);
+    var candidates =
+        List.of(
+            libraries.resolve(realm.name),
+            libraries.resolve(realm.name + "-compile-only"),
+            libraries.resolve(realm.name + "-runtime-only"));
+    for (var candidate : candidates) {
+      if (!Files.isDirectory(candidate)) {
+        continue;
+      }
+      for (var path : Util.listFiles(candidate, name -> name.equals("module-uri.properties"))) {
+        var directory = path.getParent();
+        var properties = new Properties();
+        try (var stream = Files.newInputStream(path)) {
+          properties.load(stream);
+          run.log(DEBUG, "Resolving %d modules...", properties.size());
+          for (var value : properties.values()) {
+            var uri = URI.create(value.toString());
+            run.log(DEBUG, " o %s", uri);
+            Util.download(offline, directory, uri);
+          }
+        }
+      }
+    }
+    run.log(DEBUG, "Assembled assets for %s realm.", realm.name);
+  }
+
   /** Build given realm. */
   private void build(Run run, Realm realm) {
-    var moduleSourcePath = home.resolve(realm.source);
-    if (Files.notExists(moduleSourcePath)) {
-      run.log(WARNING, "Source path of %s realm not found: %s", realm.name, moduleSourcePath);
-      return;
-    }
-    if (realm.modules.isEmpty()) {
-      throw new Error("No modules found in source path: " + moduleSourcePath);
-    }
     var pendingModules = new ArrayList<>(realm.modules);
     var builders = List.of(new MultiReleaseBuilder(run, realm), new DefaultBuilder(run, realm));
     for (var builder : builders) {
@@ -165,9 +199,8 @@ class Make implements ToolProvider {
   /** Launch JUnit Platform for given realm. */
   private void junit(Run run, Realm realm) throws Exception {
     var modulePath = new ArrayList<Path>();
-    modulePath.add(realm.compiledModules);
-    modulePath.addAll(realm.modulePath);
-    modulePath.add(Path.of("lib", realm.name + "-runtime-only"));
+    modulePath.add(realm.compiledModules); // grab test modules
+    modulePath.addAll(realm.modulePaths.get("runtime"));
     var java =
         new Args()
             .with("--show-version")
@@ -198,7 +231,7 @@ class Make implements ToolProvider {
             .with("-quiet")
             .with("-windowtitle", project + " " + version)
             .with("-d", realm.compiledJavadoc)
-            .with("--module-path", realm.modulePath)
+            .with("--module-path", realm.modulePaths.get("compile")) // "javadoc"
             .with("--module-source-path", String.join(File.pathSeparator, javaSources))
             .with("--module", String.join(",", realm.modules));
     run.tool("javadoc", javadoc.toStringArray());
@@ -221,7 +254,7 @@ class Make implements ToolProvider {
     if (debug) {
       var modulePath = new ArrayList<Path>();
       modulePath.add(realm.packagedModules);
-      modulePath.addAll(realm.modulePath);
+      modulePath.addAll(realm.modulePaths.get("runtime"));
       var jdeps =
           new Make.Args()
               .with("--module-path", modulePath)
@@ -354,29 +387,42 @@ class Make implements ToolProvider {
               .orElseThrow(() -> new Error("Couldn't find module source path!"));
       // TODO Find at least one "module-info.java" file...
       var modules = Util.listDirectoryNames(home.resolve(source));
-      // Construct compile module path...
-      var modulePath = new ArrayList<Path>();
+      var modulePaths =
+          Map.of(
+              "compile", modulePath(name, home, "compile", requiredRealms),
+              "runtime", modulePath(name, home, "runtime", requiredRealms));
+      return new Realm(name, source, modules, target, modulePaths);
+    }
+
+    /** Create module path. */
+    static List<Path> modulePath(String name, Path home, String phase, Realm... requiredRealms) {
+      var result = new ArrayList<Path>();
+      var candidates = List.of(name, name + "-" + phase + "-only");
+      for (var candidate : candidates) {
+        var lib = home.resolve("lib").resolve(candidate);
+        if (Files.isDirectory(lib)) {
+          result.add(lib);
+        }
+      }
       for (var required : requiredRealms) {
-        modulePath.add(required.packagedModules);
-        modulePath.addAll(required.modulePath);
+        result.add(required.packagedModules);
+        result.addAll(required.modulePaths.get(phase));
       }
-      var lib = Path.of("lib", name);
-      if (Files.isDirectory(lib)) {
-        modulePath.add(lib);
-      }
-      return new Realm(name, source, modules, target, modulePath);
+      return result;
     }
 
     /** Logical name of the realm. */
     final String name;
     /** Module source path. */
     final Path source;
+    /** Path to external 3rd-party libraries. */
+    final Path libraries;
     /** Names of all modules declared in this realm. */
     final List<String> modules;
     /** Target root. */
     final Path target;
-    /** Module path for compilation. */
-    final List<Path> modulePath;
+    /** Module path map. */
+    final Map<String, List<Path>> modulePaths;
 
     final Path compiledBase;
     final Path compiledJavadoc;
@@ -386,12 +432,19 @@ class Make implements ToolProvider {
     final Path packagedModules;
     final Path packagedSources;
 
-    Realm(String name, Path source, List<String> modules, Path target, List<Path> modulePath) {
+    Realm(
+        String name,
+        Path source,
+        List<String> modules,
+        Path target,
+        Map<String, List<Path>> modulePaths) {
       this.name = name;
       this.source = source;
       this.modules = modules;
       this.target = target;
-      this.modulePath = modulePath;
+      this.modulePaths = modulePaths;
+
+      this.libraries = Path.of("lib");
 
       var work = target.resolve(name);
       compiledBase = work.resolve("compiled");
@@ -460,7 +513,7 @@ class Make implements ToolProvider {
     private void compile(List<String> modules) {
       var modulePath = new ArrayList<Path>();
       modulePath.add(realm.packagedModules); // grab mr-jar's
-      modulePath.addAll(realm.modulePath);
+      modulePath.addAll(realm.modulePaths.get("compile"));
       var javac =
           new Args()
               .with(false, "-verbose")
@@ -566,7 +619,7 @@ class Make implements ToolProvider {
       } else {
         javac.with("-d", destination);
         javac.with("--module-version", version);
-        javac.with("--module-path", realm.modulePath);
+        javac.with("--module-path", realm.modulePaths.get("compile"));
         var pathR = moduleSourcePath + File.separator + "*" + File.separator + javaR;
         var sources = List.of(pathR, "" + moduleSourcePath);
         javac.with("--module-source-path", String.join(File.pathSeparator, sources));
@@ -739,6 +792,11 @@ class Make implements ToolProvider {
         }
       }
       return files;
+    }
+
+    /** List all files with specified name in given root directory. */
+    static List<Path> listFiles(Path root, Predicate<String> name) {
+      return listFiles(List.of(root), path -> name.test(path.getFileName().toString()));
     }
 
     /** List all regular Java files in given root directory. */

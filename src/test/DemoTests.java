@@ -7,6 +7,8 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
+
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -23,7 +25,8 @@ class DemoTests {
       var version = "2";
 
       var home = Path.of("demo", "jigsaw-quick-start", name);
-      var main = new Make.Realm("main", Path.of("src"), List.of(module), work, List.of());
+      Map<String, List<Path>> libs = Map.of("compile", List.of(), "runtime", List.of());
+      var main = new Make.Realm("main", Path.of("src"), List.of(module), work, libs);
       var make = new Make(true, false, name, version, home, List.of(main));
 
       assertTrue(make.debug);
@@ -114,7 +117,7 @@ class DemoTests {
               ">> BUILD >>",
               "JUnit.+",
               ">> TEST >>",
-              "[         3 tests successful      ]",
+              "[         2 tests successful      ]", // TODO Release MAINRUNNER 1.2.0
               "[         0 tests failed          ]",
               "",
               ">> DOCUMENT >>",
