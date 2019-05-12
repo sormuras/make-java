@@ -349,25 +349,12 @@ class Make implements ToolProvider {
       throw new Error("Tool '" + name + "' execution failed with error code: " + code);
     }
 
-    /** Download named tool from given uri. */
-    Path load(String name, URI uri) throws Exception {
-      var user = Path.of(System.getProperty("user.home"));
-      var tool = Path.of(".bach", "tool", name);
-      return Util.download(Boolean.getBoolean("offline"), user.resolve(tool), uri);
-    }
-
     /** Run JUnit Platform Console Launcher from Standalone distribution. */
     void junit(Args java, String... args) throws Exception {
-      var version = "1.5.0-M1";
-      var name = "junit-platform-console-standalone";
-      var root = "https://repo1.maven.org/maven2";
-      var file = name + "-" + version + ".jar";
-      var uri = String.join("/", root, "org/junit/platform", name, version, file);
-      var jar = load("junit", URI.create(uri));
       var program = ProcessHandle.current().info().command().map(Path::of).orElseThrow();
       var command = new Args().with(program);
       command.addAll(java);
-      command.with("-jar", jar).withEach(List.of(args));
+      command.with("--module", "org.junit.platform.console").withEach(List.of(args));
       log(DEBUG, "JUnit: %s", command);
       var process = new ProcessBuilder(command.toStringArray()).start();
       var code = process.waitFor();
