@@ -138,12 +138,10 @@ class Make implements ToolProvider {
       run.log(WARNING, "Source path of %s realm not found: %s", realm.name, moduleSourcePath);
       return;
     }
-    var allModules = Util.listDirectoryNames(moduleSourcePath);
-    if (allModules.isEmpty()) {
-      throw new Error("No module directories found in source path: " + moduleSourcePath);
+    if (realm.modules.isEmpty()) {
+      throw new Error("No modules found in source path: " + moduleSourcePath);
     }
-
-    var pendingModules = new ArrayList<>(allModules);
+    var pendingModules = new ArrayList<>(realm.modules);
     var builders = List.of(new MultiReleaseBuilder(run, realm), new DefaultBuilder(run, realm));
     for (var builder : builders) {
       var builtModules = builder.build(pendingModules);
@@ -170,12 +168,11 @@ class Make implements ToolProvider {
     modulePath.add(realm.compiledModules);
     modulePath.addAll(realm.modulePath);
     modulePath.add(Path.of("lib", realm.name + "-runtime-only"));
-    var addModules = String.join(",", Util.listDirectoryNames(home.resolve(realm.source)));
     var java =
         new Args()
             .with("--show-version")
             .with("--module-path", modulePath)
-            .with("--add-modules", addModules);
+            .with("--add-modules", String.join(",", realm.modules));
     var args =
         new Args()
             .with("--fail-if-no-tests")
@@ -188,7 +185,6 @@ class Make implements ToolProvider {
   private void document(Run run, Realm realm) throws Exception {
     // javadoc
     var moduleSourcePath = home.resolve(realm.source);
-    var modules = Util.listDirectoryNames(moduleSourcePath);
     var javaSources = new ArrayList<String>();
     javaSources.add(moduleSourcePath.toString());
     for (var release = 7; release <= Runtime.version().feature(); release++) {
@@ -204,7 +200,7 @@ class Make implements ToolProvider {
             .with("-d", realm.compiledJavadoc)
             .with("--module-path", realm.modulePath)
             .with("--module-source-path", String.join(File.pathSeparator, javaSources))
-            .with("--module", String.join(",", modules));
+            .with("--module", String.join(",", realm.modules));
     run.tool("javadoc", javadoc.toStringArray());
     Files.createDirectories(realm.packagedJavadoc);
     var javadocJar = realm.packagedJavadoc.resolve(project + '-' + version + "-javadoc.jar");
@@ -226,11 +222,10 @@ class Make implements ToolProvider {
       var modulePath = new ArrayList<Path>();
       modulePath.add(realm.packagedModules);
       modulePath.addAll(realm.modulePath);
-      var addModules = String.join(",", Util.listDirectoryNames(home.resolve(realm.source)));
       var jdeps =
           new Make.Args()
               .with("--module-path", modulePath)
-              .with("--add-modules", addModules)
+              .with("--add-modules", String.join(",", realm.modules))
               .with("--multi-release", "base")
               .with("-summary");
       run.tool("jdeps", jdeps.toStringArray());
@@ -357,6 +352,9 @@ class Make implements ToolProvider {
           Util.findFirstDirectory(home, "src/" + name + "/java", "src/" + name, name)
               .map(home::relativize)
               .orElseThrow(() -> new Error("Couldn't find module source path!"));
+      // TODO Find at least one "module-info.java" file...
+      var modules = Util.listDirectoryNames(home.resolve(source));
+      // Construct compile module path...
       var modulePath = new ArrayList<Path>();
       for (var required : requiredRealms) {
         modulePath.add(required.packagedModules);
@@ -366,16 +364,18 @@ class Make implements ToolProvider {
       if (Files.isDirectory(lib)) {
         modulePath.add(lib);
       }
-      return new Realm(name, source, target, modulePath);
+      return new Realm(name, source, modules, target, modulePath);
     }
 
     /** Logical name of the realm. */
     final String name;
     /** Module source path. */
     final Path source;
+    /** Names of all modules declared in this realm. */
+    final List<String> modules;
     /** Target root. */
     final Path target;
-    /** Module path */
+    /** Module path for compilation. */
     final List<Path> modulePath;
 
     final Path compiledBase;
@@ -386,9 +386,10 @@ class Make implements ToolProvider {
     final Path packagedModules;
     final Path packagedSources;
 
-    Realm(String name, Path source, Path target, List<Path> modulePath) {
+    Realm(String name, Path source, List<String> modules, Path target, List<Path> modulePath) {
       this.name = name;
       this.source = source;
+      this.modules = modules;
       this.target = target;
       this.modulePath = modulePath;
 
@@ -538,7 +539,7 @@ class Make implements ToolProvider {
         jarSources(module, base);
         // TODO Create "-javadoc.jar" for this multi-release module
       } catch (Exception e) {
-        throw new Error("Jarring module " + module + " failed!", e);
+        throw new Error("Building module " + module + " failed!", e);
       }
       return true;
     }
