@@ -216,7 +216,8 @@ class Make implements ToolProvider {
 
   /** Generate documentation for given realm. */
   private void document(Run run, Realm realm) throws Exception {
-    // javadoc
+    // TODO javadoc: error - Destination directory not writable: ${work}/main/compiled/javadoc
+    // var destination = Files.createDirectories(realm.compiledJavadoc);
     var moduleSourcePath = home.resolve(realm.source);
     var javaSources = new ArrayList<String>();
     javaSources.add(moduleSourcePath.toString());
