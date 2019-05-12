@@ -53,7 +53,7 @@ class Make implements ToolProvider {
     realms.add(main);
     try {
       realms.add(Realm.of("test", home, work, main));
-    } catch (Exception e) {
+    } catch (Error e) {
       // ignore missing test realm...
     }
     return new Make(debug, dryRun, project, version, home, realms);
