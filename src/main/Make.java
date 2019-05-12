@@ -722,6 +722,12 @@ class Make implements ToolProvider {
         try (var targetStream = Files.newOutputStream(target)) {
           sourceStream.transferTo(targetStream);
         }
+        var contentDisposition = connection.getHeaderField("Content-Disposition");
+        if (contentDisposition != null && contentDisposition.indexOf('=') > 0) {
+          var newTarget = target.resolveSibling(contentDisposition.split("=")[1]);
+          Files.move(target, newTarget);
+          target = newTarget;
+        }
         Files.setLastModifiedTime(target, lastModified);
         // logger.accept(String.format(" o Remote   -> %s", uri));
         // logger.accept(String.format(" o Target   -> %s", target.toUri()));
