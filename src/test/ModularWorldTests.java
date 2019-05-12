@@ -5,10 +5,8 @@ import static org.junit.jupiter.api.DynamicTest.dynamicTest;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
@@ -23,10 +21,12 @@ class ModularWorldTests {
   Stream<DynamicTest> buildModularWorld(@TempDir Path temp) throws Exception {
     // download and extract
     var uri = URI.create("https://github.com/sormuras/modular-world/archive/" + VERSION + ".zip");
-    var zip = "modular-world-" + VERSION + ".zip";
-    download(log -> {}, temp.resolve(zip), uri);
+    var zip = Make.Util.download(Boolean.getBoolean("offline"), temp, uri);
     var extract =
-        new ProcessBuilder("jar", "--extract", "--file", zip).directory(temp.toFile()).start();
+        new ProcessBuilder("jar", "--extract", "--file", zip.getFileName().toString())
+            .directory(temp.toFile())
+            .inheritIO()
+            .start();
     assertEquals(0, extract.waitFor(), extract.toString());
     var homes = Make.Util.listDirectories(temp.resolve("modular-world-" + VERSION));
     assertEquals(5, homes.size());
@@ -49,38 +49,5 @@ class ModularWorldTests {
     expectedLines.add("Tool 'jdeps' successfully executed.");
     expectedLines.add("Build successful after \\d+ ms\\.");
     assertLinesMatch(expectedLines, debug.lines());
-  }
-
-  static Path download(Consumer<String> logger, Path target, URI uri) throws Exception {
-    logger.accept("download(" + uri + ")");
-    var fileName = target.getFileName().toString();
-    var url = uri.toURL();
-    var connection = url.openConnection();
-    try (var sourceStream = connection.getInputStream()) {
-      var millis = connection.getLastModified();
-      var lastModified = FileTime.fromMillis(millis == 0 ? System.currentTimeMillis() : millis);
-      if (Files.exists(target)) {
-        logger.accept("Local target file exists. Comparing last modified timestamps...");
-        var fileModified = Files.getLastModifiedTime(target);
-        logger.accept(" o Remote Last Modified -> " + lastModified);
-        logger.accept(" o Target Last Modified -> " + fileModified);
-        if (fileModified.equals(lastModified)) {
-          logger.accept(String.format("Already downloaded %s previously.", fileName));
-          return target;
-        }
-        logger.accept("Local target file differs from remote source -- replacing it...");
-      }
-      logger.accept("Transferring " + uri);
-      try (var targetStream = Files.newOutputStream(target)) {
-        sourceStream.transferTo(targetStream);
-      }
-      Files.setLastModifiedTime(target, lastModified);
-      logger.accept(String.format(" o Remote   -> %s", uri));
-      logger.accept(String.format(" o Target   -> %s", target.toUri()));
-      logger.accept(String.format(" o Modified -> %s", lastModified));
-      logger.accept(String.format(" o Size     -> %d bytes", Files.size(target)));
-      logger.accept(String.format("Downloaded %s successfully.", fileName));
-    }
-    return target;
   }
 }
