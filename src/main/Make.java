@@ -152,6 +152,7 @@ class Make implements ToolProvider {
             libraries.resolve(realm.name),
             libraries.resolve(realm.name + "-compile-only"),
             libraries.resolve(realm.name + "-runtime-only"));
+    var downloaded = new ArrayList<Path>();
     for (var candidate : candidates) {
       if (!Files.isDirectory(candidate)) {
         continue;
@@ -161,15 +162,16 @@ class Make implements ToolProvider {
         var properties = new Properties();
         try (var stream = Files.newInputStream(path)) {
           properties.load(stream);
-          run.log(DEBUG, "Resolving %d modules...", properties.size());
+          run.log(DEBUG, "Resolving %d modules in %s", properties.size(), directory.toUri());
           for (var value : properties.values()) {
             var uri = URI.create(value.toString());
             run.log(DEBUG, " o %s", uri);
-            Util.download(offline, directory, uri);
+            downloaded.add(Util.download(offline, directory, uri));
           }
         }
       }
     }
+    run.log(DEBUG, "Downloaded %d modules.", downloaded.size());
     run.log(DEBUG, "Assembled assets for %s realm.", realm.name);
   }
 
