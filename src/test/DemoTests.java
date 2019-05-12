@@ -51,6 +51,8 @@ class DemoTests {
               "main/compiled/modules/com.greetings/com/greetings",
               "main/compiled/modules/com.greetings/com/greetings/Main.class",
               "main/compiled/modules/com.greetings/module-info.class",
+              "main/javadoc",
+              "main/javadoc/greetings-47.11-javadoc.jar",
               "main/modules",
               "main/modules/com.greetings-47.11.jar",
               "main/sources",
@@ -107,10 +109,11 @@ class DemoTests {
               "  realms[1] = Realm{name=test, source=src" + File.separator + "test}",
               ">> BUILD >>",
               "JUnit.+",
-              ">> TEST + SUMMARY >>",
+              ">> TEST >>",
               "[         3 tests successful      ]",
               "[         0 tests failed          ]",
               "",
+              ">> DOCUMENT >>",
               "Build successful after \\d+ ms\\."),
           debug.lines());
     }

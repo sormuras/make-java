@@ -110,26 +110,28 @@ class Make implements ToolProvider {
       return 0;
     }
     try {
-      // Build realms sequentially
-      for (var realm : realms) {
-        build(run, realm);
-      }
-      buildSummary(run, realms.get(0));
-      // Launch JUnit Platform
-      for (var realm : realms) {
-        if (realm.containsTests()) {
-          junit(run, realm);
-        }
-      }
+      build(run); // compile + jar
+      junit(run); // test
+      var main = realms.get(0);
+      document(run, main); // javadoc + x
+      summary(run, main);
       run.log(INFO, "Build successful after %d ms.", run.toDurationMillis());
       return 0;
-    } catch (Throwable t) {
-      run.log(ERROR, "Build failed: %s", t.getMessage());
-      t.printStackTrace(run.err);
+    } catch (Throwable throwable) {
+      run.log(ERROR, "Build failed: %s", throwable.getMessage());
+      throwable.printStackTrace(run.err);
       return 1;
     }
   }
 
+  /** Sequentially build all realms. */
+  private void build(Run run) {
+    for (var realm : realms) {
+      build(run, realm);
+    }
+  }
+
+  /** Build given realm. */
   private void build(Run run, Realm realm) {
     var moduleSourcePath = home.resolve(realm.source);
     if (Files.notExists(moduleSourcePath)) {
@@ -153,29 +155,17 @@ class Make implements ToolProvider {
     throw new IllegalStateException("Pending module list is not empty! " + pendingModules);
   }
 
-  private void buildSummary(Run run, Realm realm) {
-    var jars = Util.listFiles(List.of(realm.packagedModules), Util::isJarFile);
-    jars.forEach(jar -> run.log(INFO, "  -> " + jar.getFileName()));
-    if (debug) {
-      var modulePath = new ArrayList<Path>();
-      modulePath.add(realm.packagedModules);
-      modulePath.addAll(realm.modulePath);
-      var addModules = String.join(",", Util.listDirectoryNames(home.resolve(realm.source)));
-      var jdeps =
-          new Make.Args()
-              .with("--module-path", modulePath)
-              .with("--add-modules", addModules)
-              .with("--multi-release", "base")
-              .with("-summary");
-      run.tool("jdeps", jdeps.toStringArray());
+  /** Launch JUnit Platform for all realms that signal to contain tests. */
+  private void junit(Run run) throws Exception {
+    for (var realm : realms) {
+      if (realm.containsTests()) {
+        junit(run, realm);
+      }
     }
   }
 
+  /** Launch JUnit Platform for given realm. */
   private void junit(Run run, Realm realm) throws Exception {
-    if (!realm.containsTests()) {
-      run.log(WARNING, "Realm %s is not configured to contain tests...", realm.name);
-      return;
-    }
     var modulePath = new ArrayList<Path>();
     modulePath.add(realm.compiledModules);
     modulePath.addAll(realm.modulePath);
@@ -192,6 +182,59 @@ class Make implements ToolProvider {
             .with("--reports-dir", realm.target.resolve("junit-reports"))
             .with("--scan-modules");
     run.junit(java, args.toStringArray());
+  }
+
+  /** Generate documentation for given realm. */
+  private void document(Run run, Realm realm) throws Exception {
+    // javadoc
+    var moduleSourcePath = home.resolve(realm.source);
+    var modules = Util.listDirectoryNames(moduleSourcePath);
+    var javaSources = new ArrayList<String>();
+    javaSources.add(moduleSourcePath.toString());
+    for (var release = 7; release <= Runtime.version().feature(); release++) {
+      var separator = File.separator;
+      javaSources.add(moduleSourcePath + separator + "*" + separator + "java-" + release);
+    }
+    var javadoc =
+        new Args()
+            .with(false, "-verbose")
+            .with("-encoding", "UTF-8")
+            .with("-quiet")
+            .with("-windowtitle", project + " " + version)
+            .with("-d", realm.compiledJavadoc)
+            .with("--module-path", realm.modulePath)
+            .with("--module-source-path", String.join(File.pathSeparator, javaSources))
+            .with("--module", String.join(",", modules));
+    run.tool("javadoc", javadoc.toStringArray());
+    Files.createDirectories(realm.packagedJavadoc);
+    var javadocJar = realm.packagedJavadoc.resolve(project + '-' + version + "-javadoc.jar");
+    var jar =
+        new Args()
+            .with(debug, "--verbose")
+            .with("--create")
+            .with("--file", javadocJar)
+            .with("-C", realm.compiledJavadoc)
+            .with(".");
+    run.tool("jar", jar.toStringArray());
+  }
+
+  /** Log summary for given realm. */
+  private void summary(Run run, Realm realm) {
+    var jars = Util.listFiles(List.of(realm.packagedModules), Util::isJarFile);
+    jars.forEach(jar -> run.log(INFO, "  -> " + jar.getFileName()));
+    if (debug) {
+      var modulePath = new ArrayList<Path>();
+      modulePath.add(realm.packagedModules);
+      modulePath.addAll(realm.modulePath);
+      var addModules = String.join(",", Util.listDirectoryNames(home.resolve(realm.source)));
+      var jdeps =
+          new Make.Args()
+              .with("--module-path", modulePath)
+              .with("--add-modules", addModules)
+              .with("--multi-release", "base")
+              .with("-summary");
+      run.tool("jdeps", jdeps.toStringArray());
+    }
   }
 
   /** Command-line program argument list builder. */
@@ -405,12 +448,11 @@ class Make implements ToolProvider {
         for (var module : modules) {
           jarModule(module);
           jarSources(module);
-          // TODO Create "-javadoc.jar" for this module
+          // TODO Create javadoc and "-javadoc.jar" for this module
         }
       } catch (Exception e) {
         throw new Error("Building modules failed!", e);
       }
-      javadoc();
       return List.copyOf(modules);
     }
 
@@ -455,28 +497,6 @@ class Make implements ToolProvider {
               .with("-C", moduleSourcePath.resolve(module))
               .with(".");
       run.tool("jar", jar.toStringArray());
-    }
-
-    private void javadoc() {
-      var modules = Util.listDirectoryNames(moduleSourcePath);
-      var javaSources = new ArrayList<String>();
-      javaSources.add(moduleSourcePath.toString());
-      for (var release = 7; release <= Runtime.version().feature(); release++) {
-        var separator = File.separator;
-        javaSources.add(moduleSourcePath + separator + "*" + separator + "java-" + release);
-      }
-      var javadoc =
-          new Args()
-              .with(false, "-verbose")
-              .with("-encoding", "UTF-8")
-              .with("-quiet")
-              .with("-windowtitle", project + " " + version)
-              .with("-d", realm.compiledJavadoc)
-              .with("--module-path", realm.modulePath)
-              .with("--module-source-path", String.join(File.pathSeparator, javaSources))
-              .with("--module", String.join(",", modules));
-      run.tool("javadoc", javadoc.toStringArray());
-      // TODO Create "project-javadoc.jar"
     }
   }
 
@@ -613,7 +633,7 @@ class Make implements ToolProvider {
   /** Static helpers. */
   static final class Util {
     /** No instance permitted. */
-    Util() {
+    private Util() {
       throw new Error();
     }
 
