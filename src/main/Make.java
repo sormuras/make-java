@@ -109,25 +109,11 @@ class Make implements ToolProvider {
       return 0;
     }
     try {
+      // Build realms sequentially
       for (var realm : realms) {
         build(run, realm);
       }
-      var main = realms.get(0);
-      var jars = Util.listFiles(List.of(main.packagedModules), Util::isJarFile);
-      jars.forEach(jar -> run.log(INFO, "  -> " + jar.getFileName()));
-      if (debug) {
-        var modulePath = new ArrayList<Path>();
-        modulePath.add(main.packagedModules);
-        modulePath.addAll(main.modulePath);
-        var addModules = String.join(",", Util.listDirectoryNames(home.resolve(main.source)));
-        var jdeps =
-            new Make.Args()
-                .with("--module-path", modulePath)
-                .with("--add-modules", addModules)
-                .with("--multi-release", "base")
-                .with("-summary");
-        run.tool("jdeps", jdeps.toStringArray());
-      }
+      buildSummary(run, realms.get(0));
       // Launch JUnit Platform
       for (var realm : realms) {
         if (realm.containsTests()) {
@@ -167,6 +153,24 @@ class Make implements ToolProvider {
     }
     var moduleBuilder = new ModuleBuilder(run, realm);
     moduleBuilder.build(regularModules);
+  }
+
+  private void buildSummary(Run run, Realm realm) {
+    var jars = Util.listFiles(List.of(realm.packagedModules), Util::isJarFile);
+    jars.forEach(jar -> run.log(INFO, "  -> " + jar.getFileName()));
+    if (debug) {
+      var modulePath = new ArrayList<Path>();
+      modulePath.add(realm.packagedModules);
+      modulePath.addAll(realm.modulePath);
+      var addModules = String.join(",", Util.listDirectoryNames(home.resolve(realm.source)));
+      var jdeps =
+          new Make.Args()
+              .with("--module-path", modulePath)
+              .with("--add-modules", addModules)
+              .with("--multi-release", "base")
+              .with("-summary");
+      run.tool("jdeps", jdeps.toStringArray());
+    }
   }
 
   private void junit(Run run, Realm realm) throws Exception {
