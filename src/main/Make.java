@@ -231,9 +231,12 @@ class Make implements ToolProvider {
             .with("-quiet")
             .with("-windowtitle", project + " " + version)
             .with("-d", realm.compiledJavadoc)
-            .with("--module-path", realm.modulePaths.get("compile")) // "javadoc"
             .with("--module-source-path", String.join(File.pathSeparator, javaSources))
             .with("--module", String.join(",", realm.modules));
+    var modulePath = realm.modulePaths.get("compile");
+    if (!modulePath.isEmpty()) {
+      javadoc.with("--module-path", modulePath);
+    }
     run.tool("javadoc", javadoc.toStringArray());
     Files.createDirectories(realm.packagedJavadoc);
     var javadocJar = realm.packagedJavadoc.resolve(project + '-' + version + "-javadoc.jar");
@@ -511,19 +514,25 @@ class Make implements ToolProvider {
     }
 
     private void compile(List<String> modules) {
-      var modulePath = new ArrayList<Path>();
-      modulePath.add(realm.packagedModules); // grab mr-jar's
-      modulePath.addAll(realm.modulePaths.get("compile"));
       var javac =
           new Args()
               .with(false, "-verbose")
               .with("-encoding", "UTF-8")
               .with("-Xlint")
               .with("-d", realm.compiledModules)
-              .with("--module-path", modulePath)
               .with("--module-version", version)
               .with("--module-source-path", moduleSourcePath)
               .with("--module", String.join(",", modules));
+
+      var modulePath = new ArrayList<Path>();
+      if (Files.exists(realm.packagedModules)) {
+        modulePath.add(realm.packagedModules);
+      }
+      modulePath.addAll(realm.modulePaths.get("compile"));
+      if (!modulePath.isEmpty()) {
+        javac.with("--module-path", modulePath);
+      }
+
       run.tool("javac", javac.toStringArray());
     }
 
