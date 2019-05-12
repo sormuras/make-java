@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 import java.util.spi.ToolProvider;
 import java.util.stream.Collectors;
 
@@ -135,24 +136,21 @@ class Make implements ToolProvider {
       run.log(WARNING, "Source path of %s realm not found: %s", realm.name, moduleSourcePath);
       return;
     }
-    var modules = Util.listDirectoryNames(moduleSourcePath);
-    if (modules.isEmpty()) {
+    var allModules = Util.listDirectoryNames(moduleSourcePath);
+    if (allModules.isEmpty()) {
       throw new Error("No module directories found in source path: " + moduleSourcePath);
     }
-    // multi-release modules
-    var regularModules = new ArrayList<>(modules);
-    var regularModulesIterator = regularModules.listIterator();
-    while (regularModulesIterator.hasNext()) {
-      var module = regularModulesIterator.next();
-      if (Files.notExists(moduleSourcePath.resolve(module).resolve("module-info.java"))) {
-        run.log(DEBUG, "Building multi-release module: %s", module);
-        var builder = new MultiReleaseBuilder(run, realm);
-        builder.build(module);
-        regularModulesIterator.remove();
+
+    var pendingModules = new ArrayList<>(allModules);
+    var builders = List.of(new MultiReleaseBuilder(run, realm), new DefaultBuilder(run, realm));
+    for (var builder : builders) {
+      var builtModules = builder.build(pendingModules);
+      pendingModules.removeAll(builtModules);
+      if (pendingModules.isEmpty()) {
+        return;
       }
     }
-    var moduleBuilder = new ModuleBuilder(run, realm);
-    moduleBuilder.build(regularModules);
+    throw new IllegalStateException("Pending module list is not empty! " + pendingModules);
   }
 
   private void buildSummary(Run run, Realm realm) {
@@ -378,45 +376,42 @@ class Make implements ToolProvider {
   }
 
   /** Build modules. */
-  abstract class AbstractModuleBuilder {
+  @FunctionalInterface
+  interface ModuleBuilder {
+    /** Build given modules and return list of modules actually built. */
+    List<String> build(List<String> modules);
+  }
+
+  /** Build modules using default jigsaw directory layout. */
+  class DefaultBuilder implements ModuleBuilder {
     final Run run;
     final Realm realm;
     final Path moduleSourcePath;
 
-    AbstractModuleBuilder(Run run, Realm realm) {
+    DefaultBuilder(Run run, Realm realm) {
       this.run = run;
       this.realm = realm;
       this.moduleSourcePath = home.resolve(realm.source);
     }
-  }
 
-  /** Build regular modules. */
-  class ModuleBuilder extends AbstractModuleBuilder {
-
-    ModuleBuilder(Run run, Realm realm) {
-      super(run, realm);
-    }
-
-    void build(List<String> regularModules) {
-      if (regularModules.isEmpty()) {
-        run.log(DEBUG, "No regular modules available to build.");
-        return;
-      }
-      run.log(DEBUG, "Building %d module(s): %s", regularModules.size(), regularModules);
-      compile(regularModules);
+    @Override
+    public List<String> build(List<String> modules) {
+      run.log(DEBUG, "Building %d module(s): %s", modules.size(), modules);
+      compile(modules);
       if (realm.compileOnly()) {
-        return;
+        return modules;
       }
       try {
-        for (var module : regularModules) {
+        for (var module : modules) {
           jarModule(module);
           jarSources(module);
-          // TODO Create "-javadoc.jar" for this regular module
+          // TODO Create "-javadoc.jar" for this module
         }
-        javadoc();
       } catch (Exception e) {
-        throw new Error("Building regular modules failed!", e);
+        throw new Error("Building modules failed!", e);
       }
+      javadoc();
+      return List.copyOf(modules);
     }
 
     private void compile(List<String> modules) {
@@ -486,18 +481,37 @@ class Make implements ToolProvider {
   }
 
   /** Build multi-release modules. */
-  class MultiReleaseBuilder extends AbstractModuleBuilder {
+  class MultiReleaseBuilder extends DefaultBuilder {
+
+    private final Pattern javaReleasePattern = Pattern.compile("java-\\d+");
+
     MultiReleaseBuilder(Run run, Realm realm) {
       super(run, realm);
     }
 
-    void build(String module) {
+    @Override
+    public List<String> build(List<String> modules) {
+      var result = new ArrayList<String>();
+      for (var module : modules) {
+        if (build(module)) {
+          result.add(module);
+        }
+      }
+      return result;
+    }
+
+    private boolean build(String module) {
+      var names = Util.listDirectoryNames(moduleSourcePath.resolve(module));
+      if (!names.stream().allMatch(javaReleasePattern.asMatchPredicate())) {
+        return false;
+      }
+      run.log(DEBUG, "Building multi-release module: %s", module);
       int base = 8; // TODO Find declared low base number: "java-*"
       for (var release = base; release <= Runtime.version().feature(); release++) {
         compile(module, base, release);
       }
       if (realm.compileOnly()) {
-        return;
+        return true;
       }
       try {
         jarModule(module, base);
@@ -506,6 +520,7 @@ class Make implements ToolProvider {
       } catch (Exception e) {
         throw new Error("Jarring module " + module + " failed!", e);
       }
+      return true;
     }
 
     private void compile(String module, int base, int release) {
