@@ -17,7 +17,7 @@ import org.junit.jupiter.api.io.TempDir;
 class ModularWorldTests {
 
   /** https://github.com/sormuras/modular-world/releases */
-  private static final String VERSION = "0.2";
+  private static final String VERSION = "0.3";
 
   @TestFactory
   Stream<DynamicTest> buildModularWorld(@TempDir Path temp) throws Exception {
@@ -29,7 +29,7 @@ class ModularWorldTests {
         new ProcessBuilder("jar", "--extract", "--file", zip).directory(temp.toFile()).start();
     assertEquals(0, extract.waitFor(), extract.toString());
     var homes = Make.Util.listDirectories(temp.resolve("modular-world-" + VERSION));
-    assertEquals(4, homes.size());
+    assertEquals(5, homes.size());
     // build all modular projects
     return homes.stream()
         .map(home -> dynamicTest(home.getFileName().toString(), () -> build(home)));
