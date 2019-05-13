@@ -208,12 +208,24 @@ class Make implements ToolProvider {
             .with("--show-version")
             .with("--module-path", modulePath)
             .with("--add-modules", String.join(",", realm.modules));
-    var args =
+    var junit =
         new Args()
             .with("--fail-if-no-tests")
             .with("--reports-dir", realm.target.resolve("junit-reports"))
             .with("--scan-modules");
-    run.junit(java, args.toStringArray());
+    // TODO Starting JUnit Platform Console in an external process for now...
+    var program = ProcessHandle.current().info().command().map(Path::of).orElseThrow();
+    var command = new Args().with(program);
+    command.addAll(java);
+    command.with("--module", "org.junit.platform.console").withEach(junit);
+    run.log(DEBUG, "JUnit: %s", command);
+    var process = new ProcessBuilder(command.toStringArray()).start();
+    var code = process.waitFor();
+    run.out.print(new String(process.getInputStream().readAllBytes()));
+    run.err.print(new String(process.getErrorStream().readAllBytes()));
+    if (code != 0) {
+      throw new AssertionError("JUnit run exited with code " + code);
+    }
   }
 
   /** Generate documentation for given realm. */
@@ -347,22 +359,6 @@ class Make implements ToolProvider {
         return;
       }
       throw new Error("Tool '" + name + "' execution failed with error code: " + code);
-    }
-
-    /** Run JUnit Platform Console Launcher from Standalone distribution. */
-    void junit(Args java, String... args) throws Exception {
-      var program = ProcessHandle.current().info().command().map(Path::of).orElseThrow();
-      var command = new Args().with(program);
-      command.addAll(java);
-      command.with("--module", "org.junit.platform.console").withEach(List.of(args));
-      log(DEBUG, "JUnit: %s", command);
-      var process = new ProcessBuilder(command.toStringArray()).start();
-      var code = process.waitFor();
-      out.print(new String(process.getInputStream().readAllBytes()));
-      err.print(new String(process.getErrorStream().readAllBytes()));
-      if (code != 0) {
-        throw new AssertionError("JUnit run exited with code " + code);
-      }
     }
 
     long toDurationMillis() {
