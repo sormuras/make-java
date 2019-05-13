@@ -8,6 +8,7 @@ import java.io.PrintWriter;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileTime;
 import java.time.Duration;
 import java.time.Instant;
@@ -694,7 +695,12 @@ class Make implements ToolProvider {
       // logger.accept("download(" + uri + ")");
       var fileName = extractFileName(uri);
       var target = Files.createDirectories(folder).resolve(fileName);
-      var url = uri.toURL();
+      if (!uri.isAbsolute()) {
+        var source = Path.of(uri);
+        // logger.accept("Relative uri supplied, using simple copy...");
+        return Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+      }
+      var url = uri.toURL(); // fails for non-absolute uri
       if (offline) {
         if (Files.exists(target)) {
           // logger.accept("Offline mode is active and target already exists.");
