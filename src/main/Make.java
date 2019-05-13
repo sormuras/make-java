@@ -8,7 +8,6 @@ import java.io.PrintWriter;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileTime;
 import java.time.Duration;
 import java.time.Instant;
@@ -84,7 +83,7 @@ class Make implements ToolProvider {
     this.dryRun = dryRun;
     this.project = project;
     this.version = version;
-    this.home = home;
+    this.home = home.normalize().toAbsolutePath();
     this.realms = realms;
   }
 
@@ -165,7 +164,9 @@ class Make implements ToolProvider {
           properties.load(stream);
           run.log(DEBUG, "Resolving %d modules in %s", properties.size(), directory.toUri());
           for (var value : properties.values()) {
-            var uri = URI.create(value.toString());
+            var string = value.toString();
+            var uri = URI.create(string);
+            uri = uri.isAbsolute() ? uri : home.resolve(string).toUri();
             run.log(DEBUG, " o %s", uri);
             downloaded.add(Util.download(offline, directory, uri));
           }
@@ -695,11 +696,6 @@ class Make implements ToolProvider {
       // logger.accept("download(" + uri + ")");
       var fileName = extractFileName(uri);
       var target = Files.createDirectories(folder).resolve(fileName);
-      if (!uri.isAbsolute()) {
-        var source = Path.of(uri);
-        // logger.accept("Relative uri supplied, using simple copy...");
-        return Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
-      }
       var url = uri.toURL(); // fails for non-absolute uri
       if (offline) {
         if (Files.exists(target)) {

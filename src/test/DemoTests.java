@@ -19,7 +19,7 @@ class DemoTests {
   class JigsawQuickStart {
 
     @Test
-    void greetings(@TempDir Path work) {
+    void greetings(@TempDir Path work) throws Exception {
       var name = "greetings";
       var module = "com.greetings";
       var version = "2";
@@ -33,7 +33,7 @@ class DemoTests {
       assertFalse(make.dryRun);
       assertEquals(name, make.project);
       assertEquals(version, make.version);
-      assertEquals(home, make.home);
+      assertTrue(Files.isSameFile(home, make.home));
       assertEquals(1, make.realms.size());
 
       assertTrue(Files.isDirectory(make.home.resolve(main.source).resolve(module)));
