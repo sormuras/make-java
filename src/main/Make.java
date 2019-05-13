@@ -217,7 +217,7 @@ class Make implements ToolProvider {
             .with("--scan-modules");
     // TODO Starting JUnit Platform Console in an external process for now...
     var program = ProcessHandle.current().info().command().map(Path::of).orElseThrow();
-    var command = new Args().with(program);
+    var command = new Args().with(program.resolveSibling("java"));
     command.addAll(java);
     command.with("--module", "org.junit.platform.console").withEach(junit);
     run.log(DEBUG, "JUnit: %s", command);
