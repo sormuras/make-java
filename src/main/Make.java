@@ -571,6 +571,9 @@ class Make implements ToolProvider {
 
     private boolean build(String module) {
       var names = Util.listDirectoryNames(moduleSourcePath.resolve(module));
+      if (names.isEmpty()) {
+        return false; // empty source path or just a sole "module-info.java" file...
+      }
       if (!names.stream().allMatch(javaReleasePattern.asMatchPredicate())) {
         return false;
       }
