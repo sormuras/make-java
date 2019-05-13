@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnJre;
+import org.junit.jupiter.api.condition.JRE;
 
 class IntegrationTests {
 
@@ -30,5 +32,10 @@ class IntegrationTests {
             + " does not export com.greetings"
             + " to module integration",
         exception.getMessage());
+  }
+
+  @Test
+  @EnabledOnJre(JRE.JAVA_11)
+  void enabledOnJava11() {
   }
 }

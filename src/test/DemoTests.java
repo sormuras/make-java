@@ -117,7 +117,7 @@ class DemoTests {
               ">> BUILD >>",
               "JUnit.+",
               ">> TEST >>",
-              "[         2 tests successful      ]", // TODO Release MAINRUNNER 1.2.0
+              "[         3 tests successful      ]", // TODO Release MAINRUNNER 1.2.0
               "[         0 tests failed          ]",
               "",
               ">> DOCUMENT >>",
