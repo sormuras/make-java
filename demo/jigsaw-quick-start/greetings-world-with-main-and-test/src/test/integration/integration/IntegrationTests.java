@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledOnJre;
+import org.junit.jupiter.api.condition.DisabledOnJre;
 import org.junit.jupiter.api.condition.JRE;
 
 class IntegrationTests {
@@ -35,7 +35,7 @@ class IntegrationTests {
   }
 
   @Test
-  @EnabledOnJre(JRE.JAVA_11)
-  void enabledOnJava11() {
+  @DisabledOnJre(JRE.JAVA_8)
+  void disabledOnJava8() {
   }
 }
