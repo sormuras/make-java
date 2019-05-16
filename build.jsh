@@ -1,4 +1,4 @@
-/open https://github.com/junit-team/junit5-samples/raw/master/junit5-modular-world/BUILDING
+/open https://github.com/sormuras/bach/raw/master/BUILDING
 
 exe("java", "--version")
 del("work")
