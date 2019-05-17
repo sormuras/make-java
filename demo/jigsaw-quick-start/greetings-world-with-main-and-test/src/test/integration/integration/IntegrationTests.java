@@ -36,6 +36,5 @@ class IntegrationTests {
 
   @Test
   @DisabledOnJre(JRE.JAVA_8)
-  void disabledOnJava8() {
-  }
+  void disabledOnJava8() {}
 }
