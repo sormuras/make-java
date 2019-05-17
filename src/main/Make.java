@@ -1,10 +1,14 @@
+import static java.lang.ModuleLayer.defineModulesWithOneLoader;
 import static java.lang.System.Logger.Level.DEBUG;
 import static java.lang.System.Logger.Level.ERROR;
 import static java.lang.System.Logger.Level.INFO;
 import static java.lang.System.Logger.Level.WARNING;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.PrintStream;
 import java.io.PrintWriter;
+import java.lang.module.ModuleFinder;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -192,7 +196,7 @@ class Make implements ToolProvider {
   }
 
   /** Launch JUnit Platform for all realms that signal to contain tests. */
-  private void junit(Run run) throws Exception {
+  private void junit(Run run) {
     for (var realm : realms) {
       if (realm.containsTests()) {
         junit(run, realm);
@@ -201,32 +205,59 @@ class Make implements ToolProvider {
   }
 
   /** Launch JUnit Platform for given realm. */
-  private void junit(Run run, Realm realm) throws Exception {
-    var modulePath = new ArrayList<Path>();
-    modulePath.add(realm.compiledModules); // grab test modules
-    modulePath.addAll(realm.modulePaths.get("runtime"));
-    var java =
-        new Args()
-            .with("--show-version")
-            .with("--module-path", modulePath)
-            .with("--add-modules", String.join(",", realm.modules));
+  private void junit(Run run, Realm realm) {
     var junit =
         new Args()
             .with("--fail-if-no-tests")
             .with("--reports-dir", realm.target.resolve("junit-reports"))
             .with("--scan-modules");
-    // TODO Starting JUnit Platform Console in an external process for now...
-    var program = ProcessHandle.current().info().command().map(Path::of).orElseThrow();
-    var command = new Args().with(program.resolveSibling("java"));
-    command.addAll(java);
-    command.with("--module", "org.junit.platform.console").withEach(junit);
-    run.log(DEBUG, "JUnit: %s", command);
-    var process = new ProcessBuilder(command.toStringArray()).start();
-    var code = process.waitFor();
-    run.out.print(new String(process.getInputStream().readAllBytes()));
-    run.err.print(new String(process.getErrorStream().readAllBytes()));
-    if (code != 0) {
-      throw new AssertionError("JUnit run exited with code " + code);
+    run.log(DEBUG, "JUnit: %s", junit);
+
+    var modulePath = new ArrayList<Path>();
+    modulePath.add(realm.compiledModules); // grab test modules
+    modulePath.addAll(realm.modulePaths.get("runtime"));
+    var finder = ModuleFinder.of(modulePath.toArray(Path[]::new));
+    for (var reference : finder.findAll()) {
+      run.log(DEBUG, "  -> %s", reference);
+    }
+    var rootModules = new ArrayList<String>();
+    rootModules.add("org.junit.platform.console");
+    rootModules.add("org.junit.jupiter.engine");
+    // TODO Add "all-module-path" entries to resolve all engines?
+    rootModules.addAll(realm.modules);
+    var boot = ModuleLayer.boot();
+    var configuration = boot.configuration().resolve(finder, ModuleFinder.of(), rootModules);
+    var parentLoader = ClassLoader.getPlatformClassLoader();
+    var controller = defineModulesWithOneLoader(configuration, List.of(boot), parentLoader);
+    var junitConsoleLayer = controller.layer();
+    controller.addExports( // Make.java resides in an unnamed module...
+        junitConsoleLayer.findModule("org.junit.platform.console").orElseThrow(),
+        "org.junit.platform.console",
+        Make.class.getModule());
+    var junitConsoleLoader = junitConsoleLayer.findLoader("org.junit.platform.console");
+    var currentContextLoader = Thread.currentThread().getContextClassLoader();
+    try {
+      Thread.currentThread().setContextClassLoader(junitConsoleLoader);
+      var loader = Thread.currentThread().getContextClassLoader();
+      var launcher = loader.loadClass("org.junit.platform.console.ConsoleLauncher");
+      var execute =
+          launcher.getMethod(
+              "execute", PrintStream.class, PrintStream.class, String[].class);
+      var out = new ByteArrayOutputStream();
+      var err = new ByteArrayOutputStream();
+      var args = junit.toStringArray();
+      var result = execute.invoke(null, new PrintStream(out), new PrintStream(err), args);
+      run.out.write(out.toString());
+      run.err.write(err.toString());
+      var code = (int) result.getClass().getMethod("getExitCode").invoke(result);
+      if (code != 0) {
+        throw new AssertionError("JUnit run exited with code " + code);
+      }
+    } catch (Throwable t) {
+      throw new Error("ConsoleLauncher.execute(...) failed: " + t, t);
+    }
+    finally{
+      Thread.currentThread().setContextClassLoader(currentContextLoader);
     }
   }
 
