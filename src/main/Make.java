@@ -209,9 +209,6 @@ class Make implements ToolProvider {
         new Args()
             .with("--show-version")
             .with("--module-path", modulePath)
-            .with(
-                "--add-opens",
-                "org.junit.jupiter.api/org.junit.jupiter.api.condition=org.junit.platform.commons")
             .with("--add-modules", String.join(",", realm.modules));
     var junit =
         new Args()
