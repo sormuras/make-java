@@ -98,7 +98,9 @@ class DemoTests {
     }
 
     @Test
-    void greetingsWorldWithMainAndTest(@TempDir Path work) {
+    void greetingsWorldWithMainAndTest() throws Exception {
+      var work = Files.createTempDirectory("make-java-demo-GWwMaT-"); // jars are locked!
+
       var home = Path.of("demo", "jigsaw-quick-start", "greetings-world-with-main-and-test");
       var main = Make.Realm.of("main", home, work);
       var test = Make.Realm.of("test", home, work, main);
