@@ -26,7 +26,7 @@ class DemoTests {
 
       var home = Path.of("demo", "jigsaw-quick-start", name);
       Map<String, List<Path>> libs = Map.of("compile", List.of(), "runtime", List.of());
-      var main = new Make.Realm("main", Path.of("src"), List.of(module), work, libs);
+      var main = new Make.Realm("main", Path.of("src"), List.of(module), work, libs, Map.of());
       var make = new Make(true, false, name, version, home, List.of(main));
 
       assertTrue(make.debug);
@@ -119,7 +119,7 @@ class DemoTests {
               ">> BUILD >>",
               "JUnit.+",
               ">> TEST >>",
-              "[         3 tests successful      ]", // TODO Release MAINRUNNER 1.2.0
+              "[         4 tests successful      ]", // TODO Release MAINRUNNER 1.2.0
               "[         0 tests failed          ]",
               "",
               ">> DOCUMENT >>",

@@ -22,8 +22,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 import java.util.spi.ToolProvider;
 import java.util.stream.Collectors;
@@ -332,13 +336,18 @@ class Make implements ToolProvider {
     }
 
     /** Add two arguments, i.e. the key and the paths joined by system's path separator. */
-    Args with(Object key, List<Path> paths) {
+    Args with(Object key, Collection<Path> paths) {
+      return with(key, paths, UnaryOperator.identity());
+    }
+
+    /** Add two arguments, i.e. the key and the paths joined by system's path separator. */
+    Args with(Object key, Collection<Path> paths, UnaryOperator<String> operator) {
       var value =
           paths.stream()
               // .filter(Files::isDirectory)
               .map(Object::toString)
               .collect(Collectors.joining(File.pathSeparator));
-      return with(key, value);
+      return with(key, operator.apply(value));
     }
 
     /** Add all arguments by invoking {@link #with(Object)} for each element. */
@@ -411,7 +420,12 @@ class Make implements ToolProvider {
           Map.of(
               "compile", modulePath(name, home, "compile", requiredRealms),
               "runtime", modulePath(name, home, "runtime", requiredRealms));
-      return new Realm(name, source, modules, target, modulePaths);
+      var requiredSources = new ArrayList<Path>();
+      for (var requiredRealm : requiredRealms) {
+        requiredSources.add(home.resolve(requiredRealm.source));
+      }
+      var patches = Util.findPatchMap(List.of(home.resolve(source)), requiredSources);
+      return new Realm(name, source, modules, target, modulePaths, patches);
     }
 
     /** Create module path. */
@@ -443,6 +457,8 @@ class Make implements ToolProvider {
     final Path target;
     /** Module path map. */
     final Map<String, List<Path>> modulePaths;
+    /** Patch modules. */
+    final Map<String, Set<Path>> patches;
 
     final Path compiledBase;
     final Path compiledJavadoc;
@@ -457,12 +473,14 @@ class Make implements ToolProvider {
         Path source,
         List<String> modules,
         Path target,
-        Map<String, List<Path>> modulePaths) {
+        Map<String, List<Path>> modulePaths,
+        Map<String, Set<Path>> patches) {
       this.name = name;
       this.source = source;
       this.modules = modules;
       this.target = target;
       this.modulePaths = modulePaths;
+      this.patches = patches;
 
       this.libraries = Path.of("lib");
 
@@ -541,6 +559,11 @@ class Make implements ToolProvider {
       modulePath.addAll(realm.modulePaths.get("compile"));
       if (!modulePath.isEmpty()) {
         javac.with("--module-path", modulePath);
+      }
+      for (var entry : realm.patches.entrySet()) {
+        var module = entry.getKey();
+        var patches = entry.getValue();
+        javac.with("--patch-module", patches, paths -> module + "=" + paths);
       }
 
       run.tool("javac", javac.toStringArray());
@@ -770,6 +793,22 @@ class Make implements ToolProvider {
     /** Find first subdirectory below the given home path. */
     static Optional<Path> findFirstDirectory(Path home, String... paths) {
       return Arrays.stream(paths).map(home::resolve).filter(Files::isDirectory).findFirst();
+    }
+
+    /** Return patch map using two collections of paths. */
+    static Map<String, Set<Path>> findPatchMap(Collection<Path> bases, Collection<Path> patches) {
+      var map = new TreeMap<String, Set<Path>>();
+      for (var base : bases) {
+        for (var name : listDirectoryNames(base)) {
+          for (var patch : patches) {
+            var candidate = patch.resolve(name);
+            if (Files.isDirectory(candidate)) {
+              map.computeIfAbsent(name, __ -> new TreeSet<>()).add(candidate);
+            }
+          }
+        }
+      }
+      return map;
     }
 
     /** Test supplied path for pointing to a regular Java source compilation unit file. */
