@@ -184,7 +184,7 @@ class Make implements ToolProvider {
   /** Build given realm. */
   private void build(Run run, Realm realm) {
     var pendingModules = new ArrayList<>(realm.modules);
-    var builders = List.of(new MultiReleaseBuilder(run, realm), new DefaultBuilder(run, realm));
+    var builders = List.of(new MultiReleaseBuilder(run, realm), new JigsawBuilder(run, realm));
     for (var builder : builders) {
       var builtModules = builder.build(pendingModules);
       pendingModules.removeAll(builtModules);
@@ -241,8 +241,7 @@ class Make implements ToolProvider {
       var loader = Thread.currentThread().getContextClassLoader();
       var launcher = loader.loadClass("org.junit.platform.console.ConsoleLauncher");
       var execute =
-          launcher.getMethod(
-              "execute", PrintStream.class, PrintStream.class, String[].class);
+          launcher.getMethod("execute", PrintStream.class, PrintStream.class, String[].class);
       var out = new ByteArrayOutputStream();
       var err = new ByteArrayOutputStream();
       var args = junit.toStringArray();
@@ -255,8 +254,7 @@ class Make implements ToolProvider {
       }
     } catch (Throwable t) {
       throw new Error("ConsoleLauncher.execute(...) failed: " + t, t);
-    }
-    finally{
+    } finally {
       Thread.currentThread().setContextClassLoader(currentContextLoader);
     }
   }
@@ -494,27 +492,20 @@ class Make implements ToolProvider {
     }
   }
 
-  /** Build modules. */
-  @FunctionalInterface
-  interface ModuleBuilder {
-    /** Build given modules and return list of modules actually built. */
-    List<String> build(List<String> modules);
-  }
-
   /** Build modules using default jigsaw directory layout. */
-  class DefaultBuilder implements ModuleBuilder {
+  class JigsawBuilder {
     final Run run;
     final Realm realm;
     final Path moduleSourcePath;
 
-    DefaultBuilder(Run run, Realm realm) {
+    JigsawBuilder(Run run, Realm realm) {
       this.run = run;
       this.realm = realm;
       this.moduleSourcePath = home.resolve(realm.source);
     }
 
-    @Override
-    public List<String> build(List<String> modules) {
+    /** Build given modules and return list of modules actually built. */
+    List<String> build(List<String> modules) {
       run.log(DEBUG, "Building %d module(s): %s", modules.size(), modules);
       compile(modules);
       if (realm.compileOnly()) {
@@ -583,7 +574,7 @@ class Make implements ToolProvider {
   }
 
   /** Build multi-release modules. */
-  class MultiReleaseBuilder extends DefaultBuilder {
+  class MultiReleaseBuilder extends JigsawBuilder {
 
     private final Pattern javaReleasePattern = Pattern.compile("java-\\d+");
 
@@ -592,7 +583,7 @@ class Make implements ToolProvider {
     }
 
     @Override
-    public List<String> build(List<String> modules) {
+    List<String> build(List<String> modules) {
       var result = new ArrayList<String>();
       for (var module : modules) {
         if (build(module)) {
