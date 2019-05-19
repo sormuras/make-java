@@ -625,7 +625,8 @@ class Make implements ToolProvider {
         return false;
       }
       run.log(DEBUG, "Building multi-release module: %s", module);
-      int base = 8; // TODO Find declared low base number: "java-*"
+      int base = Util.findBaseJavaFeatureNumber(names);
+      run.log(DEBUG, "Base feature number is: %d", base);
       for (var release = base; release <= Runtime.version().feature(); release++) {
         compile(module, base, release);
       }
@@ -809,6 +810,21 @@ class Make implements ToolProvider {
         }
       }
       return map;
+    }
+
+    /** Find lowest Java feature number. */
+    static int findBaseJavaFeatureNumber(List<String> strings) {
+      int base = Integer.MAX_VALUE;
+      for (var string : strings) {
+        var candidate = Integer.valueOf(string.substring("java-".length()));
+        if (candidate < base) {
+          base = candidate;
+        }
+      }
+      if (base == Integer.MAX_VALUE) {
+        throw new IllegalArgumentException("No base Java feature number found: " + strings);
+      }
+      return base;
     }
 
     /** Test supplied path for pointing to a regular Java source compilation unit file. */
