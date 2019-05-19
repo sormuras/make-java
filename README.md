@@ -2,20 +2,19 @@
 [![Build Status](https://travis-ci.com/sormuras/make-java.svg?branch=master)](https://travis-ci.com/sormuras/make-java)
 
 # make.java
-Build modular Java projects
+Build a modular Java project via
 
-`jshell https://bit.ly/make-java`
+```bash
+jshell https://bit.ly/make-java
+```
 
-which expands to
+## featuring
 
-`jshell https://raw.githubusercontent.com/sormuras/make-java/master/make-java.jsh`
+- compile, package, check, document
+- single-pass multi-module processing (`--module-source-path`)
+- multi-release modules (`java-8`, `java-9`, ..., `java-N`)
+- 3rd-party library resolution (`lib/../module-uri.properties`)
 
+### links
 
-## `src`
-
-Contains Java source code.
-
-## `lib`
-
-Contains Java modules needed to compile this `make-java` project.
-Import them into your IDE of choice.
+- `https://bit.ly/make-java` expands to [`make-java.jsh`](make-java.jsh)
