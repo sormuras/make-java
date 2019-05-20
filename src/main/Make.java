@@ -1,4 +1,5 @@
 import static java.lang.System.Logger.Level.DEBUG;
+import static java.lang.System.Logger.Level.ERROR;
 import static java.lang.System.Logger.Level.INFO;
 import static java.lang.System.Logger.Level.WARNING;
 
@@ -24,7 +25,8 @@ class Make implements ToolProvider {
   public static void main(String... args) {
     var code = Make.of(USER_PATH).run(System.out, System.err, args);
     if (code != 0) {
-      throw new Error("Make.java failed with error code: " + code);
+      System.err.println("Make.java failed with error code: " + code);
+      System.exit(code);
     }
   }
 
@@ -58,8 +60,25 @@ class Make implements ToolProvider {
     run.log(DEBUG, "  args = %s", args);
     run.log(DEBUG, "  user.path = %s", USER_PATH);
     run.log(DEBUG, "  configuration.home = %s", configuration.home);
+    run.log(DEBUG, "  configuration.work = %s", configuration.work);
     run.log(DEBUG, "  configuration.threshold = %s", configuration.threshold);
     run.log(DEBUG, "  run.type = %s", run.getClass().getTypeName());
+
+    var main = new Realm(configuration, "main");
+    var test = new Realm(configuration, "test");
+
+    var modules = new ArrayList<String>();
+    modules.addAll(main.listModules());
+    modules.addAll(test.listModules());
+
+    if (modules.isEmpty()) {
+      run.log(ERROR, "No module found: " + configuration.home);
+      return -1;
+    }
+
+    run.log(DEBUG, "Modules in 'main' realm: %s", main.listModules());
+    run.log(DEBUG, "Modules in 'test' realm: %s", test.listModules());
+
     return 0;
   }
 
@@ -122,6 +141,7 @@ class Make implements ToolProvider {
     }
 
     final Path home;
+    final Path work;
     final Project project;
     final System.Logger.Level threshold;
 
@@ -129,6 +149,8 @@ class Make implements ToolProvider {
       this.home = home.toAbsolutePath().normalize();
 
       var configurator = new Configurator(properties);
+      var work = Path.of(configurator.get("work", "target"));
+      this.work = work.isAbsolute() ? work : home.resolve(work);
       this.project =
           new Project(
               configurator.get("name", home.getFileName().toString()),
