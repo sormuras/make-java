@@ -29,7 +29,7 @@ class MakeTests {
     assertTrue(out.contains(make.name() + ' ' + Make.VERSION));
     assertTrue(out.contains("args = []"));
 
-    var expected = String.format("Not a single module found: %s%n", make.configuration.home);
+    var expected = String.format("No module found: %s%n", make.configuration.home);
     assertEquals(expected, run.err.toString());
   }
 }
