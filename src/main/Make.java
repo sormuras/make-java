@@ -6,9 +6,9 @@ import static java.lang.System.Logger.Level.WARNING;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
+import java.util.TreeSet;
 import java.util.spi.ToolProvider;
 import java.util.stream.Collectors;
 
@@ -38,9 +38,15 @@ class Make implements ToolProvider {
 
   /** Immutable configuration. */
   final Configuration configuration;
+  /** Main realm. */
+  final Realm main;
+  /** Test realm. */
+  final Realm test;
 
   private Make(Configuration configuration) {
     this.configuration = configuration;
+    this.main = new Realm(configuration, "main");
+    this.test = new Realm(configuration, "test");
   }
 
   @Override
@@ -64,10 +70,7 @@ class Make implements ToolProvider {
     run.log(DEBUG, "  configuration.threshold = %s", configuration.threshold);
     run.log(DEBUG, "  run.type = %s", run.getClass().getTypeName());
 
-    var main = new Realm(configuration, "main");
-    var test = new Realm(configuration, "test");
-
-    var modules = new ArrayList<String>();
+    var modules = new TreeSet<String>();
     modules.addAll(main.listModules());
     modules.addAll(test.listModules());
 
