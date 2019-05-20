@@ -5,9 +5,11 @@ import static java.lang.System.Logger.Level.WARNING;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 import java.util.spi.ToolProvider;
+import java.util.stream.Collectors;
 
 /** Modular project model and maker. */
 class Make implements ToolProvider {
@@ -155,6 +157,45 @@ class Make implements ToolProvider {
       var consumer = level.getSeverity() < WARNING.getSeverity() ? out : err;
       var message = String.format(format, args);
       consumer.println(message);
+    }
+  }
+
+  /** Modular source set. */
+  static class Realm {
+    final String name;
+    final Path source;
+    final Path target;
+
+    Realm(Configuration configuration, String name) {
+      this.name = name;
+      this.source = configuration.home.resolve("src").resolve(name);
+      this.target = configuration.home.resolve("target").resolve(name);
+    }
+
+    List<String> listModules() {
+      return Files.isDirectory(source) ? Util.listDirectoryNames(source) : List.of();
+    }
+  }
+
+  /** Static helpers. */
+  static class Util {
+
+    /** Return list of child directories directly present in {@code root} path. */
+    static List<Path> listDirectories(Path root) {
+      try (var paths = Files.find(root, 1, (path, attr) -> Files.isDirectory(path))) {
+        return paths.filter(path -> !root.equals(path)).collect(Collectors.toList());
+      } catch (Exception e) {
+        throw new Error("listDirectories failed for root: " + root, e);
+      }
+    }
+
+    /** Return sorted list of child directory names directly present in {@code root} path. */
+    static List<String> listDirectoryNames(Path root) {
+      return listDirectories(root).stream()
+          .map(root::relativize)
+          .map(Path::toString)
+          .sorted()
+          .collect(Collectors.toList());
     }
   }
 }

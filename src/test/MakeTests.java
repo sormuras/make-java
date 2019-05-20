@@ -25,9 +25,11 @@ class MakeTests {
     var code = make.run(run, List.of());
     var out = run.out.toString();
 
-    assertEquals(0, code, out);
+    assertEquals(-1, code, out);
     assertTrue(out.contains(make.name() + ' ' + Make.VERSION));
     assertTrue(out.contains("args = []"));
-    assertTrue(run.err.toString().isEmpty());
+
+    var expected = String.format("Not a single module found: %s%n", make.configuration.home);
+    assertEquals(expected, run.err.toString());
   }
 }
