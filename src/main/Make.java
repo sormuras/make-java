@@ -23,9 +23,10 @@ class Make implements ToolProvider {
 
   /** Main entry-point. */
   public static void main(String... args) {
-    var code = Make.of(USER_PATH).run(System.out, System.err, args);
+    var make = Make.of(USER_PATH);
+    var code = make.run(System.out, System.err, args);
     if (code != 0) {
-      System.err.println("Make.java failed with error code: " + code);
+      System.err.println(make.name() + " failed with error code: " + code);
       System.exit(code);
     }
   }
