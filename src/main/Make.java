@@ -3,12 +3,16 @@ import static java.lang.System.Logger.Level.ERROR;
 import static java.lang.System.Logger.Level.INFO;
 import static java.lang.System.Logger.Level.WARNING;
 
+import java.io.File;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Properties;
 import java.util.TreeSet;
+import java.util.function.UnaryOperator;
 import java.util.spi.ToolProvider;
 import java.util.stream.Collectors;
 
@@ -183,6 +187,50 @@ class Make implements ToolProvider {
       var consumer = level.getSeverity() < WARNING.getSeverity() ? out : err;
       var message = String.format(format, args);
       consumer.println(message);
+    }
+  }
+
+  /** Command-line program argument list builder. */
+  static class Args {
+
+    final ArrayList<String> list = new ArrayList<>();
+
+    /** Add single argument by invoking {@link Object#toString()} on the given argument. */
+    Args add(Object argument) {
+      list.add(argument.toString());
+      return this;
+    }
+
+    /** Add a single argument iff the conditions is {@code true}. */
+    Args add(boolean condition, Object argument) {
+      return condition ? add(argument) : this;
+    }
+
+    /** Add two arguments by invoking {@link #add(Object)} for the key and value elements. */
+    Args add(Object key, Object value) {
+      return add(key).add(value);
+    }
+
+    /** Add two arguments, i.e. the key and the paths joined by system's path separator. */
+    Args add(Object key, Collection<Path> paths) {
+      return add(key, paths, UnaryOperator.identity());
+    }
+
+    /** Add two arguments, i.e. the key and the paths joined by system's path separator. */
+    Args add(Object key, Collection<Path> paths, UnaryOperator<String> operator) {
+      var stream = paths.stream() /*.filter(Files::isDirectory)*/.map(Object::toString);
+      return add(key, operator.apply(stream.collect(Collectors.joining(File.pathSeparator))));
+    }
+
+    /** Add all arguments by invoking {@link #add(Object)} for each element. */
+    Args addEach(Iterable<?> arguments) {
+      arguments.forEach(this::add);
+      return this;
+    }
+
+    /** Returns an array of {@link String} containing all of the collected arguments. */
+    String[] toStringArray() {
+      return list.toArray(String[]::new);
     }
   }
 
