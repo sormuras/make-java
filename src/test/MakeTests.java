@@ -25,7 +25,7 @@ class MakeTests {
     var code = make.run(run, List.of());
     var out = run.out.toString();
 
-    assertEquals(-1, code, out);
+    assertEquals(1, code, out);
     assertTrue(out.contains(make.name() + ' ' + Make.VERSION));
     assertTrue(out.contains("args = []"));
 

@@ -77,7 +77,7 @@ class Make implements ToolProvider {
 
     if (modules.isEmpty()) {
       run.log(ERROR, "No module found: " + configuration.home);
-      return -1;
+      return 1;
     }
 
     run.log(DEBUG, "Modules in 'main' realm: %s", main.modules);
