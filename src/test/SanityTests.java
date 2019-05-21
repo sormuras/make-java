@@ -13,10 +13,22 @@ import org.junit.jupiter.api.Test;
 
 class SanityTests {
 
+  private static final List<String> EXPECTED_NORMAL_OUTPUT_LINES =
+      List.of(
+          "Making Make.java master...",
+               "Make.java master",
+               "  args = []",
+               "  user.path = " + Make.USER_PATH,
+               "  configuration.home = " + Make.USER_PATH,
+               "  configuration.work = "  + Make.USER_PATH.resolve("target"),
+               "  configuration.threshold = ALL",
+               "  run\\.type = .*Make\\$Run");
+
   @Test
   void openAndRunMakeJavaInJShellReturnsOne() throws Exception {
     var builder = new ProcessBuilder("jshell");
     builder.command().add("--execution=local");
+    builder.command().add("-J-Debug");
     builder.command().add("-"); // Standard input, without interactive I/O.
     var process = builder.start();
     process.getOutputStream().write("/open src/main/Make.java\n".getBytes());
@@ -28,7 +40,7 @@ class SanityTests {
     var code = process.exitValue();
     assertEquals(1, code);
     assertStreams(
-        List.of("Making Make.java master..."),
+        EXPECTED_NORMAL_OUTPUT_LINES,
         List.of("No module found: " + Make.USER_PATH),
         process);
   }
@@ -37,13 +49,14 @@ class SanityTests {
   void compileAndRunMakeJavaWithJavaReturnsOne() throws Exception {
     var builder = new ProcessBuilder("java");
     builder.command().add("-ea");
+    builder.command().add("-Debug");
     builder.command().add("src/main/Make.java");
     var process = builder.start();
     process.waitFor(9, TimeUnit.SECONDS);
     var code = process.exitValue();
     assertEquals(1, code);
     assertStreams(
-        List.of("Making Make.java master..."),
+        EXPECTED_NORMAL_OUTPUT_LINES,
         List.of("No module found: " + Make.USER_PATH, "Make.java failed with error code: 1"),
         process);
   }
