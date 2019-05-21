@@ -71,16 +71,16 @@ class Make implements ToolProvider {
     run.log(DEBUG, "  run.type = %s", run.getClass().getTypeName());
 
     var modules = new TreeSet<String>();
-    modules.addAll(main.listModules());
-    modules.addAll(test.listModules());
+    modules.addAll(main.modules);
+    modules.addAll(test.modules);
 
     if (modules.isEmpty()) {
       run.log(ERROR, "No module found: " + configuration.home);
       return -1;
     }
 
-    run.log(DEBUG, "Modules in 'main' realm: %s", main.listModules());
-    run.log(DEBUG, "Modules in 'test' realm: %s", test.listModules());
+    run.log(DEBUG, "Modules in 'main' realm: %s", main.modules);
+    run.log(DEBUG, "Modules in 'test' realm: %s", test.modules);
 
     return 0;
   }
@@ -190,15 +190,13 @@ class Make implements ToolProvider {
     final String name;
     final Path source;
     final Path target;
+    final List<String> modules;
 
     Realm(Configuration configuration, String name) {
       this.name = name;
       this.source = configuration.home.resolve("src").resolve(name);
       this.target = configuration.home.resolve("target").resolve(name);
-    }
-
-    List<String> listModules() {
-      return Files.isDirectory(source) ? Util.listDirectoryNames(source) : List.of();
+      this.modules = Files.isDirectory(source) ? Util.listDirectoryNames(source) : List.of();
     }
   }
 
