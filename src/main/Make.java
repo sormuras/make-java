@@ -145,11 +145,11 @@ class Make implements ToolProvider {
     final System.Logger.Level threshold;
 
     Configuration(Path home, Properties properties) {
-      this.home = home.toAbsolutePath().normalize();
+      this.home = USER_PATH.relativize(home.toAbsolutePath().normalize());
 
       var configurator = new Configurator(properties);
       var work = Path.of(configurator.get("work", "target"));
-      this.work = work.isAbsolute() ? work : home.resolve(work);
+      this.work = work.isAbsolute() ? work : this.home.resolve(work);
       this.project =
           new Project(
               configurator.get("name", home.getFileName().toString()),
@@ -247,7 +247,7 @@ class Make implements ToolProvider {
     Realm(Configuration configuration, String name) {
       this.name = name;
       this.source = configuration.home.resolve("src").resolve(name);
-      this.target = configuration.home.resolve("target").resolve(name);
+      this.target = configuration.work.resolve(name);
       this.modules = Files.isDirectory(source) ? Util.listDirectoryNames(source) : List.of();
     }
   }

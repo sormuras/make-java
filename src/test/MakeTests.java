@@ -12,7 +12,7 @@ class MakeTests {
     var make = Make.of(Path.of(".").normalize().toAbsolutePath());
     var configuration = make.configuration;
 
-    assertEquals(Make.USER_PATH, configuration.home);
+    assertEquals(Path.of(""), configuration.home);
     assertEquals("Make.java", configuration.project.name);
     assertEquals("master", configuration.project.version);
   }
@@ -25,11 +25,10 @@ class MakeTests {
     var code = make.run(run, List.of());
     var out = run.out.toString();
 
-    assertEquals(1, code, out);
+    assertEquals(0, code, out + "\n" + run.err);
     assertTrue(out.contains(make.name() + ' ' + Make.VERSION));
     assertTrue(out.contains("args = []"));
-
-    var expected = String.format("No module found: %s%n", make.configuration.home);
-    assertEquals(expected, run.err.toString());
+    assertTrue(out.contains("Build successful after"));
+    assertEquals("", run.err.toString());
   }
 }
