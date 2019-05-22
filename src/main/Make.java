@@ -339,6 +339,10 @@ class Make implements ToolProvider {
 
   /** Static helpers. */
   static class Util {
+    /** No instance permitted. */
+    private Util() {
+      throw new Error();
+    }
 
     /** Return list of child directories directly present in {@code root} path. */
     static List<Path> listDirectories(Path root) {
@@ -366,6 +370,9 @@ class Make implements ToolProvider {
 
     /** List paths specified by a glob pattern. */
     static List<Path> listPaths(Path root, String glob) {
+      if (Files.notExists(root)) {
+        return List.of();
+      }
       var paths = new ArrayList<Path>();
       for (var directory : listDirectories(root, Integer.MAX_VALUE, true)) {
         try (var stream = Files.newDirectoryStream(directory, glob)) {
