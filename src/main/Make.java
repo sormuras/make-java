@@ -3,10 +3,16 @@ import static java.lang.System.Logger.Level.ERROR;
 import static java.lang.System.Logger.Level.INFO;
 import static java.lang.System.Logger.Level.WARNING;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.PrintStream;
 import java.io.PrintWriter;
+import java.net.URI;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -102,6 +108,32 @@ class Make implements ToolProvider {
     run.log(DEBUG, "Modules in 'main' realm: %s", main.modules);
     run.log(DEBUG, "Modules in 'test' realm: %s", test.modules);
     // TODO build modules...
+  }
+
+  private void launchJUnitConsole(Run run, ClassLoader loader, Args junit) {
+    run.log(DEBUG, "JUnit: %s", junit.list);
+    var currentThread = Thread.currentThread();
+    var currentContextLoader = currentThread.getContextClassLoader();
+    currentThread.setContextClassLoader(loader);
+    try {
+      var launcher = loader.loadClass("org.junit.platform.console.ConsoleLauncher");
+      var execute =
+          launcher.getMethod("execute", PrintStream.class, PrintStream.class, String[].class);
+      var out = new ByteArrayOutputStream();
+      var err = new ByteArrayOutputStream();
+      var args = junit.toStringArray();
+      var result = execute.invoke(null, new PrintStream(out), new PrintStream(err), args);
+      run.out.write(out.toString());
+      run.err.write(err.toString());
+      var code = (int) result.getClass().getMethod("getExitCode").invoke(result);
+      if (code != 0) {
+        throw new AssertionError("JUnit run exited with code " + code);
+      }
+    } catch (Throwable t) {
+      throw new Error("ConsoleLauncher.execute(...) failed: " + t, t);
+    } finally {
+      currentThread.setContextClassLoader(currentContextLoader);
+    }
   }
 
   /** Global project constants. */
@@ -310,8 +342,10 @@ class Make implements ToolProvider {
       jarClasses(main);
       jarSources(main);
       // TODO document(main);
-      // TODO compile(test);
-      // TODO junit(test);
+      compile(test);
+      if (!"Make.java".equals(configuration.project.name)) {
+        junit(test);
+      }
     }
 
     private void compile(Realm realm) {
@@ -334,6 +368,91 @@ class Make implements ToolProvider {
       var file = realm.target.resolve(name + "-sources.jar");
       var jar = configuration.newJarArgs(file).add("-C", realm.source).add(".");
       run.tool("jar", jar.toStringArray());
+    }
+
+    private void junit(Realm realm) {
+      var junit =
+          new Args()
+              .add("--fail-if-no-tests")
+              .add("--reports-dir", realm.target.resolve("junit-reports"))
+              .add("--class-path", realm.target.resolve("classes"))
+              .add("--scan-class-path");
+      var libraries = configuration.home.resolve("lib");
+
+      var paths = new ArrayList<Path>();
+      paths.add(realm.target.resolve("classes")); // test classes
+      paths.addAll(Util.listPaths(libraries.resolve(realm.name), "*.jar"));
+      paths.addAll(Util.listPaths(libraries.resolve(realm.name + "-runtime-only"), "*.jar"));
+      if (realm.name.equals("test")) {
+        var name = configuration.project.name + '-' + configuration.project.version;
+        paths.add(main.target.resolve(name + ".jar"));
+        paths.addAll(Util.listPaths(libraries.resolve("main"), "*.jar"));
+        paths.addAll(Util.listPaths(libraries.resolve("main-runtime-only"), "*.jar"));
+      }
+
+      var urls = new URL[paths.size()];
+      for (int i = 0; i < urls.length; i++) {
+        try {
+          urls[i] = paths.get(i).toUri().toURL();
+        } catch (Exception e) {
+          throw new Error("Converting path to URL failed!", e);
+        }
+      }
+      var parent = ClassLoader.getPlatformClassLoader();
+      var loader = new URLClassLoader("junit-classical", urls, parent);
+      launchJUnitConsole(run, loader, junit);
+    }
+  }
+
+  /** Downloader. */
+  static class Downloader {
+
+    /** Extract last path element from the supplied uri. */
+    static String extractFileName(URI uri) {
+      var path = uri.getPath(); // strip query and fragment elements
+      return path.substring(path.lastIndexOf('/') + 1);
+    }
+
+    final Path folder;
+    final boolean offline;
+
+    Downloader(Path folder, boolean offline) {
+      this.folder = folder;
+      this.offline = offline;
+    }
+
+    Path transfer(URI uri) throws Exception {
+      var fileName = extractFileName(uri);
+      var target = Files.createDirectories(folder).resolve(fileName);
+      var url = uri.toURL(); // fails for non-absolute uri
+      if (offline) {
+        if (Files.exists(target)) {
+          return target;
+        }
+        throw new IllegalStateException("Target is missing and being offline: " + target);
+      }
+      var connection = url.openConnection();
+      try (var sourceStream = connection.getInputStream()) {
+        var millis = connection.getLastModified();
+        var lastModified = FileTime.fromMillis(millis == 0 ? System.currentTimeMillis() : millis);
+        if (Files.exists(target)) {
+          var fileModified = Files.getLastModifiedTime(target);
+          if (fileModified.equals(lastModified)) {
+            return target;
+          }
+        }
+        try (var targetStream = Files.newOutputStream(target)) {
+          sourceStream.transferTo(targetStream);
+        }
+        var contentDisposition = connection.getHeaderField("Content-Disposition");
+        if (contentDisposition != null && contentDisposition.indexOf('=') > 0) {
+          var newTarget = target.resolveSibling(contentDisposition.split("=")[1]);
+          Files.move(target, newTarget);
+          target = newTarget;
+        }
+        Files.setLastModifiedTime(target, lastModified);
+      }
+      return target;
     }
   }
 
