@@ -281,8 +281,14 @@ class Make implements ToolProvider {
 
     /** Return list of child directories directly present in {@code root} path. */
     static List<Path> listDirectories(Path root) {
-      try (var paths = Files.find(root, 1, (path, attr) -> Files.isDirectory(path))) {
-        return paths.filter(path -> !root.equals(path)).collect(Collectors.toList());
+      return listDirectories(root, 1, false);
+    }
+
+    /** Return list of directories starting with {@code root} path. */
+    static List<Path> listDirectories(Path root, int maxDepth, boolean includeRoot) {
+      try (var paths = Files.find(root, maxDepth, (path, attr) -> Files.isDirectory(path))) {
+        var stream = includeRoot ? paths : paths.filter(path -> !root.equals(path));
+        return stream.sorted().collect(Collectors.toList());
       } catch (Exception e) {
         throw new Error("listDirectories failed for root: " + root, e);
       }
@@ -295,6 +301,19 @@ class Make implements ToolProvider {
           .map(Path::toString)
           .sorted()
           .collect(Collectors.toList());
+    }
+
+    /** List paths specified by a glob pattern. */
+    static List<Path> listPaths(Path root, String glob) {
+      var paths = new ArrayList<Path>();
+      for (var directory : listDirectories(root, Integer.MAX_VALUE, true)) {
+        try (var stream = Files.newDirectoryStream(directory, glob)) {
+          stream.forEach(paths::add);
+        } catch (Exception e) {
+          throw new Error("listPaths failed for directory: " + directory, e);
+        }
+      }
+      return paths;
     }
   }
 }
