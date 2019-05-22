@@ -7,11 +7,13 @@ import java.io.File;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Properties;
-import java.util.TreeSet;
+import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
 import java.util.spi.ToolProvider;
 import java.util.stream.Collectors;
@@ -172,11 +174,17 @@ class Make implements ToolProvider {
 
   /** Runtime context information. */
   static class Run {
+    /** Current logging level threshold. */
     final System.Logger.Level threshold;
+    /** Stream to which normal and expected output should be written. */
     final PrintWriter out;
+    /** Stream to which any error messages should be written. */
     final PrintWriter err;
+    /** Time instant recorded on creation of this instance. */
+    final Instant start;
 
     Run(System.Logger.Level threshold, PrintWriter out, PrintWriter err) {
+      this.start = Instant.now();
       this.threshold = threshold;
       this.out = out;
       this.err = err;
@@ -202,6 +210,10 @@ class Make implements ToolProvider {
         return;
       }
       throw new RuntimeException("Tool '" + name + "' run failed with error code: " + code);
+    }
+
+    long toDurationMillis() {
+      return TimeUnit.MILLISECONDS.convert(Duration.between(start, Instant.now()));
     }
   }
 
