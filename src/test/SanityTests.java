@@ -23,8 +23,6 @@ class SanityTests {
           "  configuration.work = .*target",
           "  configuration.threshold = ALL",
           "  run\\.type = .*Make\\$Run",
-          "Modules in 'main' realm: []",
-          "Modules in 'test' realm: []",
           ">> BUILD >>",
           "Build successful after \\d+ ms.");
 

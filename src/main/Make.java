@@ -77,10 +77,31 @@ class Make implements ToolProvider {
     run.log(DEBUG, "  configuration.threshold = %s", configuration.threshold);
     run.log(DEBUG, "  run.type = %s", run.getClass().getTypeName());
 
+    try {
+      assemble(run);
+      build(run);
+      run.log(INFO, "Build successful after %d ms.", run.toDurationMillis());
+      return 0;
+    } catch (Throwable throwable) {
+      run.log(ERROR, "Build failed: %s", throwable.getMessage());
+      throwable.printStackTrace(run.err);
+      return 1;
+    }
+  }
+
+  private void assemble(Run run) {
+    run.log(DEBUG, "Assembling 3rd-party libraries...");
+  }
+
+  private void build(Run run) {
+    if (main.modules.size() + test.modules.size() == 0) {
+      run.log(INFO, "No modules found. Trying to build using `--class-path`...");
+      new ClassicalBuilder(run).build();
+      return;
+    }
     run.log(DEBUG, "Modules in 'main' realm: %s", main.modules);
     run.log(DEBUG, "Modules in 'test' realm: %s", test.modules);
-
-    return 0;
+    // TODO build modules...
   }
 
   /** Global project constants. */
@@ -273,6 +294,46 @@ class Make implements ToolProvider {
       this.source = configuration.home.resolve("src").resolve(name);
       this.target = configuration.work.resolve(name);
       this.modules = Files.isDirectory(source) ? Util.listDirectoryNames(source) : List.of();
+    }
+  }
+
+  /** Classpath-based builder. */
+  class ClassicalBuilder {
+    final Run run;
+
+    ClassicalBuilder(Run run) {
+      this.run = run;
+    }
+
+    void build() {
+      compile(main);
+      jarClasses(main);
+      jarSources(main);
+      // TODO document(main);
+      // TODO compile(test);
+      // TODO junit(test);
+    }
+
+    private void compile(Realm realm) {
+      var destination = realm.target.resolve("classes");
+      var units = Util.listPaths(realm.source, "*.java");
+      var javac = configuration.newJavacArgs(destination).addEach(units);
+      run.tool("javac", javac.toStringArray());
+    }
+
+    private void jarClasses(Realm realm) {
+      var destination = realm.target.resolve("classes");
+      var name = configuration.project.name + '-' + configuration.project.version;
+      var file = realm.target.resolve(name + ".jar");
+      var jar = configuration.newJarArgs(file).add("-C", destination).add(".");
+      run.tool("jar", jar.toStringArray());
+    }
+
+    private void jarSources(Realm realm) {
+      var name = configuration.project.name + '-' + configuration.project.version;
+      var file = realm.target.resolve(name + "-sources.jar");
+      var jar = configuration.newJarArgs(file).add("-C", realm.source).add(".");
+      run.tool("jar", jar.toStringArray());
     }
   }
 
