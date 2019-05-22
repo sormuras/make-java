@@ -75,15 +75,6 @@ class Make implements ToolProvider {
     run.log(DEBUG, "  configuration.threshold = %s", configuration.threshold);
     run.log(DEBUG, "  run.type = %s", run.getClass().getTypeName());
 
-    var modules = new TreeSet<String>();
-    modules.addAll(main.modules);
-    modules.addAll(test.modules);
-
-    if (modules.isEmpty()) {
-      run.log(ERROR, "No module found: " + configuration.home);
-      return 1;
-    }
-
     run.log(DEBUG, "Modules in 'main' realm: %s", main.modules);
     run.log(DEBUG, "Modules in 'test' realm: %s", test.modules);
 
