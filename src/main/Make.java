@@ -188,6 +188,18 @@ class Make implements ToolProvider {
       var message = String.format(format, args);
       consumer.println(message);
     }
+
+    /** Run provided tool. */
+    void tool(String name, String... args) {
+      log(DEBUG, "Running tool '%s' with: %s", name, List.of(args));
+      var tool = ToolProvider.findFirst(name).orElseThrow();
+      var code = tool.run(out, err, args);
+      if (code == 0) {
+        log(DEBUG, "Tool '%s' successfully run.", name);
+        return;
+      }
+      throw new RuntimeException("Tool '" + name + "' run failed with error code: " + code);
+    }
   }
 
   /** Command-line program argument list builder. */
