@@ -156,6 +156,18 @@ class Make implements ToolProvider {
               configurator.get("version", "1.0.0-SNAPSHOT"));
       this.threshold = configurator.threshold();
     }
+
+    Args newJavacArgs(Path destination) {
+      return new Args()
+          .add(false, "-verbose")
+          .add("-encoding", "UTF-8")
+          .add("-Xlint")
+          .add("-d", destination);
+    }
+
+    Args newJarArgs(Path file) {
+      return new Args().add(true, "--verbose").add("--create").add("--file", file);
+    }
   }
 
   /** Runtime context information. */
