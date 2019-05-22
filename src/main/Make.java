@@ -109,7 +109,8 @@ class Make implements ToolProvider {
         List.of(
             libraries.resolve(realm.name),
             libraries.resolve(realm.name + "-compile-only"),
-            libraries.resolve(realm.name + "-runtime-only"));
+            libraries.resolve(realm.name + "-runtime-only"),
+            libraries.resolve(realm.name + "-runtime-platform"));
     var downloaded = new ArrayList<Path>();
     for (var candidate : candidates) {
       if (!Files.isDirectory(candidate)) {
@@ -383,7 +384,7 @@ class Make implements ToolProvider {
       // TODO document(main);
       compile(test);
       if (!"Make.java".equals(configuration.project.name)) {
-        junit(test);
+        junit();
       }
     }
 
@@ -421,37 +422,38 @@ class Make implements ToolProvider {
       run.tool("jar", jar.toStringArray());
     }
 
-    private void junit(Realm realm) {
+    private void junit() {
       var junit =
           new Args()
               .add("--fail-if-no-tests")
-              .add("--reports-dir", realm.target.resolve("junit-reports"))
-              .add("--class-path", realm.target.resolve("classes"))
+              .add("--reports-dir", test.target.resolve("junit-reports"))
+              .add("--class-path", test.target.resolve("classes"))
               .add("--scan-class-path");
+      launchJUnitConsole(run, newJUnitConsoleClassLoader(), junit);
+    }
+
+    private ClassLoader newJUnitConsoleClassLoader() {
       var libraries = configuration.home.resolve("lib");
 
-      var paths = new ArrayList<Path>();
-      paths.add(realm.target.resolve("classes")); // test classes
-      paths.addAll(Util.listPaths(libraries.resolve(realm.name), "*.jar"));
-      paths.addAll(Util.listPaths(libraries.resolve(realm.name + "-runtime-only"), "*.jar"));
-      if (realm.name.equals("test")) {
-        var name = configuration.project.name + '-' + configuration.project.version;
-        paths.add(main.target.resolve(name + ".jar"));
-        paths.addAll(Util.listPaths(libraries.resolve("main"), "*.jar"));
-        paths.addAll(Util.listPaths(libraries.resolve("main-runtime-only"), "*.jar"));
-      }
+      var mainPaths = new ArrayList<Path>();
+      var name = configuration.project.name + '-' + configuration.project.version;
+      mainPaths.add(main.target.resolve(name + ".jar"));
+      mainPaths.addAll(Util.listPaths(libraries.resolve("main"), "*.jar"));
+      mainPaths.addAll(Util.listPaths(libraries.resolve("main-runtime-only"), "*.jar"));
 
-      var urls = new URL[paths.size()];
-      for (int i = 0; i < urls.length; i++) {
-        try {
-          urls[i] = paths.get(i).toUri().toURL();
-        } catch (Exception e) {
-          throw new Error("Converting path to URL failed!", e);
-        }
-      }
+      var testPaths = new ArrayList<Path>();
+      testPaths.add(test.target.resolve("classes"));
+      testPaths.addAll(Util.listPaths(libraries.resolve("test"), "*.jar"));
+      testPaths.addAll(Util.listPaths(libraries.resolve("test-runtime-only"), "*.jar"));
+
+      var unitPaths = new ArrayList<Path>();
+      testPaths.addAll(Util.listPaths(libraries.resolve("test-runtime-platform"), "*.jar"));
+
       var parent = ClassLoader.getPlatformClassLoader();
-      var loader = new URLClassLoader("junit-classical", urls, parent);
-      launchJUnitConsole(run, loader, junit);
+      var mainLoader = new URLClassLoader("junit-main", Util.toUrls(mainPaths), parent);
+      var testLoader = new URLClassLoader("junit-test", Util.toUrls(testPaths), mainLoader);
+      var unitLoader = new URLClassLoader("junit-platform", Util.toUrls(unitPaths), testLoader);
+      return new URLClassLoader("junit-classical", new URL[0], unitLoader);
     }
   }
 
@@ -552,6 +554,19 @@ class Make implements ToolProvider {
         }
       }
       return paths;
+    }
+
+    static URL[] toUrls(Collection<Path> paths) {
+      var urls = new URL[paths.size()];
+      var index = 0;
+      try {
+        for (var path : paths) {
+          urls[index++] = path.toUri().toURL();
+        }
+      } catch (Exception e) {
+        throw new Error("toUrls failed: " + paths, e);
+      }
+      return urls;
     }
   }
 }
