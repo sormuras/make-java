@@ -95,8 +95,47 @@ class Make implements ToolProvider {
     }
   }
 
-  private void assemble(Run run) {
+  private void assemble(Run run) throws Exception {
     run.log(DEBUG, "Assembling 3rd-party libraries...");
+    assemble(run, main);
+    assemble(run, test);
+  }
+
+  /** Assemble assets and check preconditions. */
+  private void assemble(Run run, Realm realm) throws Exception {
+    run.log(DEBUG, "Assembling assets for %s realm...", realm.name);
+    var libraries = configuration.home.resolve("lib");
+    var candidates =
+        List.of(
+            libraries.resolve(realm.name),
+            libraries.resolve(realm.name + "-compile-only"),
+            libraries.resolve(realm.name + "-runtime-only"));
+    var downloaded = new ArrayList<Path>();
+    for (var candidate : candidates) {
+      if (!Files.isDirectory(candidate)) {
+        continue;
+      }
+      var path = candidate.resolve("module-uri.properties");
+      if (Files.notExists(path)) {
+        continue;
+      }
+      var directory = path.getParent();
+      var downloader = new Downloader(directory, Boolean.getBoolean("offline"));
+      var properties = new Properties();
+      try (var stream = Files.newInputStream(path)) {
+        properties.load(stream);
+        run.log(DEBUG, "Resolving %d modules in %s", properties.size(), directory.toUri());
+        for (var value : properties.values()) {
+          var string = value.toString();
+          var uri = URI.create(string);
+          uri = uri.isAbsolute() ? uri : configuration.home.resolve(string).toUri();
+          run.log(DEBUG, " o %s", uri);
+          downloaded.add(downloader.transfer(uri));
+        }
+      }
+    }
+    run.log(DEBUG, "Downloaded %d modules.", downloaded.size());
+    run.log(DEBUG, "Assembled assets for %s realm.", realm.name);
   }
 
   private void build(Run run) {
