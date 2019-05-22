@@ -2,4 +2,4 @@ dist: xenial
 language: java
 
 script:
-- jshell --show-version --execution local ./build.jsh
+- jshell --show-version --execution local -J-Debug ./build.jsh

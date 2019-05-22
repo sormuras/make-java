@@ -1,33 +1,27 @@
 /open https://github.com/sormuras/bach/raw/master/BUILDING
 
 exe("java", "--version")
-del("work")
+del("target")
+
+/open src/main/Make.java
 
 /*
- * Build "main" realm.
+ * Build "main" and "test" realm using Make.java's ClassicalBuilder.
  */
-var code = run("javac", "-d", "work/main", "src/main/Make.java")
+var make = Make.of(Make.USER_PATH)
+var code = make.run(System.out, System.err)
 
 /*
- * Build "test" realm.
+ * Run tests "externally" to prevent cyclical runtime loops...
  */
-
 if (code == 0) {
-  var junit = get("work/lib", "org.junit.platform", "junit-platform-console-standalone", "1.4.2");
-  var args = new Arguments()
-      .add("-d").add("work/test")
-      .add("--class-path").addPath("work/main", "work/lib", junit.toString())
-      .addAllFiles("src/test", ".java");
-  code = run("javac", args.toArray());
-}
-
-if (code == 0) {
-  var args = new Arguments()
-      .add("--class-path").addPath("work/test", "work/main", "work/lib/*")
+  var sep = File.pathSeparator;
+  var args = new Make.Args()
+      .add("--class-path", "target/test/classes" + sep + "target/main/classes" + sep + "lib/test/*")
       .add("org.junit.platform.console.ConsoleLauncher")
-      .add("--reports-dir").add("work/test-reports")
+      .add("--reports-dir", "target/test-reports")
       .add("--scan-class-path");
-  code = exe("java", args.toArray());
+  code = exe("java", args.toStringArray());
 }
 
 /exit code
