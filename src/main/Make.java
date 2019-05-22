@@ -351,8 +351,20 @@ class Make implements ToolProvider {
     private void compile(Realm realm) {
       var destination = realm.target.resolve("classes");
       var units = Util.listPaths(realm.source, "*.java");
-      var javac = configuration.newJavacArgs(destination).addEach(units);
-      run.tool("javac", javac.toStringArray());
+      var javac = configuration.newJavacArgs(destination);
+
+      var libraries = configuration.home.resolve("lib");
+      var paths = new ArrayList<Path>();
+      if (realm.name.equals("test")) {
+        var name = configuration.project.name + '-' + configuration.project.version;
+        paths.add(main.target.resolve(name + ".jar"));
+      }
+      paths.addAll(Util.listPaths(libraries.resolve(realm.name), "*.jar"));
+      paths.addAll(Util.listPaths(libraries.resolve(realm.name + "-compile-only"), "*.jar"));
+      if (!paths.isEmpty()) {
+        javac.add("--class-path", paths);
+      }
+      run.tool("javac", javac.addEach(units).toStringArray());
     }
 
     private void jarClasses(Realm realm) {
