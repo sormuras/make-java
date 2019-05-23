@@ -98,7 +98,7 @@ class Make implements ToolProvider {
     }
   }
 
-  void assemble(Run run) throws Exception {
+  private void assemble(Run run) throws Exception {
     run.log(DEBUG, "Assembling 3rd-party libraries...");
     assemble(run, main);
     assemble(run, test);
@@ -153,7 +153,7 @@ class Make implements ToolProvider {
     // TODO build modules...
   }
 
-  private void launchJUnitConsole(Run run, ClassLoader loader, Args junit) {
+  private void launchJUnitPlatformConsole(Run run, ClassLoader loader, Args junit) {
     run.log(DEBUG, "JUnit: %s", junit.list);
     var currentThread = Thread.currentThread();
     var currentContextLoader = currentThread.getContextClassLoader();
@@ -242,6 +242,7 @@ class Make implements ToolProvider {
     }
 
     final boolean dryRun;
+    final boolean doLaunchJUnitPlatform;
     final Path home;
     final Path work;
     final Project project;
@@ -252,6 +253,7 @@ class Make implements ToolProvider {
 
       var configurator = new Configurator(properties);
       this.dryRun = configurator.is("dry-run", "false");
+      this.doLaunchJUnitPlatform = configurator.is("do-launch-junit-platform", "true");
       var work = Path.of(configurator.get("work", "target"));
       this.work = work.isAbsolute() ? work : this.home.resolve(work);
       this.project =
@@ -398,11 +400,13 @@ class Make implements ToolProvider {
       }
       if (Files.exists(test.source)) {
         compile(test);
-        junit();
+        if (configuration.doLaunchJUnitPlatform) {
+          junit();
+        }
       }
     }
 
-    void compile(Realm realm) {
+    private void compile(Realm realm) {
       var units = Util.listPaths(realm.source, "*.java");
       if (units.isEmpty()) {
         throw new IllegalStateException("No source files found in: " + realm.source);
@@ -422,7 +426,7 @@ class Make implements ToolProvider {
       run.tool("javac", javac.addEach(units).toStringArray());
     }
 
-    void jarClasses(Realm realm) {
+    private void jarClasses(Realm realm) {
       var destination = realm.target.resolve("classes");
       var name = configuration.project.name + '-' + configuration.project.version;
       var file = realm.target.resolve(name + ".jar");
@@ -444,10 +448,10 @@ class Make implements ToolProvider {
               .add("--reports-dir", test.target.resolve("junit-reports"))
               .add("--class-path", test.target.resolve("classes"))
               .add("--scan-class-path");
-      launchJUnitConsole(run, newJUnitConsoleClassLoader(), junit);
+      launchJUnitPlatformConsole(run, newJUnitPlatformClassLoader(), junit);
     }
 
-    private ClassLoader newJUnitConsoleClassLoader() {
+    private ClassLoader newJUnitPlatformClassLoader() {
       var libraries = configuration.home.resolve("lib");
 
       var mainPaths = new ArrayList<Path>();
@@ -455,20 +459,22 @@ class Make implements ToolProvider {
       mainPaths.add(main.target.resolve(name + ".jar"));
       mainPaths.addAll(Util.listPaths(libraries.resolve("main"), "*.jar"));
       mainPaths.addAll(Util.listPaths(libraries.resolve("main-runtime-only"), "*.jar"));
+      mainPaths.removeIf(path -> Files.notExists(path));
 
       var testPaths = new ArrayList<Path>();
       testPaths.add(test.target.resolve("classes"));
       testPaths.addAll(Util.listPaths(libraries.resolve("test"), "*.jar"));
       testPaths.addAll(Util.listPaths(libraries.resolve("test-runtime-only"), "*.jar"));
+      testPaths.removeIf(path -> Files.notExists(path));
 
-      var unitPaths = new ArrayList<Path>();
-      unitPaths.addAll(Util.listPaths(libraries.resolve("test-runtime-platform"), "*.jar"));
+      var platformPaths = new ArrayList<Path>();
+      platformPaths.addAll(Util.listPaths(libraries.resolve("test-runtime-platform"), "*.jar"));
+      platformPaths.removeIf(path -> Files.notExists(path));
 
       var parent = ClassLoader.getPlatformClassLoader();
       var mainLoader = new URLClassLoader("junit-main", Util.toUrls(mainPaths), parent);
       var testLoader = new URLClassLoader("junit-test", Util.toUrls(testPaths), mainLoader);
-      var unitLoader = new URLClassLoader("junit-platform", Util.toUrls(unitPaths), testLoader);
-      return new URLClassLoader("junit-classical", new URL[0], unitLoader);
+      return new URLClassLoader("junit-platform", Util.toUrls(platformPaths), testLoader);
     }
   }
 
