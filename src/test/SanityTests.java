@@ -15,6 +15,7 @@ class SanityTests {
 
   private static final List<String> EXPECTED_NORMAL_OUTPUT_LINES =
       List.of(
+          "__BEGIN__",
           "Making Make.java master...",
           "Make.java master",
           "  args = []",
