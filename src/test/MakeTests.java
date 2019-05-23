@@ -23,12 +23,12 @@ class MakeTests {
     var run = new TestRun();
 
     var code = make.run(run, List.of());
-    var out = run.out.toString();
+    var out = run.out.toString().strip();
 
-    assertEquals(0, code, out + "\n" + run.err);
+    assertEquals(0, code, run.toString());
     assertTrue(out.contains(make.name() + ' ' + Make.VERSION));
     assertTrue(out.contains("args = []"));
-    assertTrue(out.contains("Build successful after"));
+    assertTrue(out.endsWith("Dry-run ends here."));
     assertEquals("", run.err.toString());
   }
 }

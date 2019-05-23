@@ -18,6 +18,6 @@ class TestRun extends Make.Run {
 
   @Override
   public String toString() {
-    return "\n\n___out" + out + "\n\n___err" + err;
+    return "\n\n___err\n" + err + "\n\n___out\n" + out;
   }
 }

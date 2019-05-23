@@ -82,7 +82,10 @@ class Make implements ToolProvider {
     run.log(DEBUG, "  configuration.work = %s", configuration.work);
     run.log(DEBUG, "  configuration.threshold = %s", configuration.threshold);
     run.log(DEBUG, "  run.type = %s", run.getClass().getTypeName());
-
+    if (configuration.dryRun) {
+      run.log(INFO, "Dry-run ends here.");
+      return 0;
+    }
     try {
       assemble(run);
       build(run);
@@ -95,7 +98,7 @@ class Make implements ToolProvider {
     }
   }
 
-  private void assemble(Run run) throws Exception {
+  void assemble(Run run) throws Exception {
     run.log(DEBUG, "Assembling 3rd-party libraries...");
     assemble(run, main);
     assemble(run, test);
@@ -207,9 +210,13 @@ class Make implements ToolProvider {
         return System.getProperty(key, properties.getProperty(key, defaultValue));
       }
 
+      boolean is(String key, String defaultValue) {
+        var value = System.getProperty(key.substring(1), properties.getProperty(key, defaultValue));
+        return "".equals(value) || "true".equals(value);
+      }
+
       private System.Logger.Level threshold() {
-        var debug = System.getProperty("debug".substring(1));
-        if ("".equals(debug) || "true".equals(debug)) {
+        if (is("debug", "false")) {
           return System.Logger.Level.ALL;
         }
         var level = get("threshold", "INFO").toUpperCase();
@@ -234,6 +241,7 @@ class Make implements ToolProvider {
       return properties;
     }
 
+    final boolean dryRun;
     final Path home;
     final Path work;
     final Project project;
@@ -243,6 +251,7 @@ class Make implements ToolProvider {
       this.home = USER_PATH.relativize(home.toAbsolutePath().normalize());
 
       var configurator = new Configurator(properties);
+      this.dryRun = configurator.is("dry-run", "false");
       var work = Path.of(configurator.get("work", "target"));
       this.work = work.isAbsolute() ? work : this.home.resolve(work);
       this.project =
@@ -365,7 +374,10 @@ class Make implements ToolProvider {
       this.name = name;
       this.source = configuration.home.resolve("src").resolve(name);
       this.target = configuration.work.resolve(name);
-      this.modules = Files.isDirectory(source) ? Util.listDirectoryNames(source) : List.of();
+      this.modules =
+          Util.listPaths(source, "module-info.java").size() > 0
+              ? Util.listDirectoryNames(source)
+              : List.of();
     }
   }
 
@@ -378,36 +390,39 @@ class Make implements ToolProvider {
     }
 
     void build() {
-      compile(main);
-      jarClasses(main);
-      jarSources(main);
-      // TODO document(main);
-      compile(test);
-      if (!"Make.java".equals(configuration.project.name)) {
+      if (Files.exists(main.source)) {
+        compile(main);
+        jarClasses(main);
+        jarSources(main);
+        // TODO document(main);
+      }
+      if (Files.exists(test.source)) {
+        compile(test);
         junit();
       }
     }
 
-    private void compile(Realm realm) {
-      var destination = realm.target.resolve("classes");
+    void compile(Realm realm) {
       var units = Util.listPaths(realm.source, "*.java");
-      var javac = configuration.newJavacArgs(destination);
-
-      var libraries = configuration.home.resolve("lib");
-      var paths = new ArrayList<Path>();
+      if (units.isEmpty()) {
+        throw new IllegalStateException("No source files found in: " + realm.source);
+      }
+      var classPath = new ArrayList<Path>();
       if (realm.name.equals("test")) {
         var name = configuration.project.name + '-' + configuration.project.version;
-        paths.add(main.target.resolve(name + ".jar"));
+        classPath.add(main.target.resolve(name + ".jar"));
       }
-      paths.addAll(Util.listPaths(libraries.resolve(realm.name), "*.jar"));
-      paths.addAll(Util.listPaths(libraries.resolve(realm.name + "-compile-only"), "*.jar"));
-      if (!paths.isEmpty()) {
-        javac.add("--class-path", paths);
+      var libraries = configuration.home.resolve("lib");
+      classPath.addAll(Util.listPaths(libraries.resolve(realm.name), "*.jar"));
+      classPath.addAll(Util.listPaths(libraries.resolve(realm.name + "-compile-only"), "*.jar"));
+      var javac = configuration.newJavacArgs(realm.target.resolve("classes"));
+      if (!classPath.isEmpty()) {
+        javac.add("--class-path", classPath);
       }
       run.tool("javac", javac.addEach(units).toStringArray());
     }
 
-    private void jarClasses(Realm realm) {
+    void jarClasses(Realm realm) {
       var destination = realm.target.resolve("classes");
       var name = configuration.project.name + '-' + configuration.project.version;
       var file = realm.target.resolve(name + ".jar");
@@ -447,7 +462,7 @@ class Make implements ToolProvider {
       testPaths.addAll(Util.listPaths(libraries.resolve("test-runtime-only"), "*.jar"));
 
       var unitPaths = new ArrayList<Path>();
-      testPaths.addAll(Util.listPaths(libraries.resolve("test-runtime-platform"), "*.jar"));
+      unitPaths.addAll(Util.listPaths(libraries.resolve("test-runtime-platform"), "*.jar"));
 
       var parent = ClassLoader.getPlatformClassLoader();
       var mainLoader = new URLClassLoader("junit-main", Util.toUrls(mainPaths), parent);

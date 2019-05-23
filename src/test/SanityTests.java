@@ -23,8 +23,7 @@ class SanityTests {
           "  configuration.work = .*target",
           "  configuration.threshold = ALL",
           "  run\\.type = .*Make\\$Run",
-          ">> BUILD >>",
-          "Build successful after \\d+ ms.");
+          "Dry-run ends here.");
 
   @Test
   void openAndRunMakeJavaInJShellReturnsZero() throws Exception {
@@ -56,8 +55,16 @@ class SanityTests {
   }
 
   static void assertStreams(List<String> expectedErrorStreamLines, Process process) {
-    assertLinesMatch(EXPECTED_NORMAL_OUTPUT_LINES, lines(process.getInputStream()));
-    assertLinesMatch(expectedErrorStreamLines, lines(process.getErrorStream()));
+    var out = lines(process.getInputStream());
+    var err = lines(process.getErrorStream());
+    try {
+      assertLinesMatch(EXPECTED_NORMAL_OUTPUT_LINES, out);
+      assertLinesMatch(expectedErrorStreamLines, err);
+    } catch (AssertionError e) {
+      var msg = String.join("\n", err) + String.join("\n", out);
+      System.err.println(msg);
+      throw e;
+    }
   }
 
   static List<String> lines(InputStream stream) {
