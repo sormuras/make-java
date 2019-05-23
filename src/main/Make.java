@@ -74,6 +74,7 @@ class Make implements ToolProvider {
   }
 
   int run(Run run, List<String> args) {
+    run.log(DEBUG, "__BEGIN__");
     run.log(INFO, "Making %s...", configuration.project);
     run.log(DEBUG, "%s %s", name(), VERSION);
     run.log(DEBUG, "  args = %s", args);
@@ -89,6 +90,8 @@ class Make implements ToolProvider {
     try {
       assemble(run);
       build(run);
+      summary(run, main);
+      run.log(DEBUG, "__END.__");
       run.log(INFO, "Build successful after %d ms.", run.toDurationMillis());
       return 0;
     } catch (Throwable throwable) {
@@ -99,7 +102,7 @@ class Make implements ToolProvider {
   }
 
   private void assemble(Run run) throws Exception {
-    run.log(DEBUG, "Assembling 3rd-party libraries...");
+    run.log(DEBUG, "__ASSEMBLE__");
     assemble(run, main);
     assemble(run, test);
   }
@@ -143,6 +146,7 @@ class Make implements ToolProvider {
   }
 
   private void build(Run run) {
+    run.log(DEBUG, "__BUILD__");
     if (main.modules.size() + test.modules.size() == 0) {
       run.log(INFO, "No modules found. Trying to build using `--class-path`...");
       new ClassicalBuilder(run).build();
@@ -154,7 +158,9 @@ class Make implements ToolProvider {
   }
 
   private void launchJUnitPlatformConsole(Run run, ClassLoader loader, Args junit) {
-    run.log(DEBUG, "JUnit: %s", junit.list);
+    run.log(DEBUG, "__CHECK__");
+    run.log(DEBUG, "Launching JUnit Platform Console: %s", junit.list);
+    run.log(DEBUG, "Using class loader: %s - %s", loader.getName(), loader);
     var currentThread = Thread.currentThread();
     var currentContextLoader = currentThread.getContextClassLoader();
     currentThread.setContextClassLoader(loader);
@@ -176,6 +182,29 @@ class Make implements ToolProvider {
       throw new Error("ConsoleLauncher.execute(...) failed: " + t, t);
     } finally {
       currentThread.setContextClassLoader(currentContextLoader);
+    }
+  }
+
+  /** Log summary for given realm. */
+  private void summary(Run run, Realm realm) {
+    run.log(INFO, "__SUMMARY__");
+    var jars = Util.listPaths(realm.target, "*.jar");
+    jars.forEach(jar -> run.log(INFO, "  -> " + jar));
+    if (configuration.debug) {
+      var jdeps = new Make.Args().add("-summary");
+      if (realm.modules.isEmpty()) {
+        // var classPath = new ArrayList<Path>(); // realm "runtime"
+        jdeps.add(jars.get(1));
+      } else {
+        // var modulePath = new ArrayList<Path>();
+        // modulePath.add(realm.packagedModules);
+        // modulePath.addAll(realm.modulePaths.get("runtime"));
+        jdeps
+            // .add("--module-path", modulePath)
+            .add("--add-modules", String.join(",", realm.modules))
+            .add("--multi-release", "base");
+      }
+      run.tool("jdeps", jdeps.toStringArray());
     }
   }
 
@@ -241,6 +270,7 @@ class Make implements ToolProvider {
       return properties;
     }
 
+    final boolean debug;
     final boolean dryRun;
     final boolean doLaunchJUnitPlatform;
     final Path home;
@@ -252,6 +282,7 @@ class Make implements ToolProvider {
       this.home = USER_PATH.relativize(home.toAbsolutePath().normalize());
 
       var configurator = new Configurator(properties);
+      this.debug = configurator.is("debug", "false");
       this.dryRun = configurator.is("dry-run", "false");
       this.doLaunchJUnitPlatform = configurator.is("do-launch-junit-platform", "true");
       var work = Path.of(configurator.get("work", "target"));
@@ -265,14 +296,14 @@ class Make implements ToolProvider {
 
     Args newJavacArgs(Path destination) {
       return new Args()
-          .add(false, "-verbose")
+          .add(false, "-verbose") // that's really(!) verbose...
           .add("-encoding", "UTF-8")
           .add("-Xlint")
           .add("-d", destination);
     }
 
     Args newJarArgs(Path file) {
-      return new Args().add(true, "--verbose").add("--create").add("--file", file);
+      return new Args().add(debug, "--verbose").add("--create").add("--file", file);
     }
   }
 
