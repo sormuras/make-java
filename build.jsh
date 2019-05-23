@@ -17,7 +17,7 @@ var code = make.run(System.out, System.err)
 if (code == 0) {
   var sep = File.pathSeparator;
   var args = new Make.Args()
-      .add("--class-path", "target/test/classes" + sep + "target/main/classes" + sep + "lib/test/*")
+      .add("--class-path", "target/test/classes" + sep + "target/main/classes" + sep + "lib/test-runtime-platform/*")
       .add("org.junit.platform.console.ConsoleLauncher")
       .add("--reports-dir", "target/test-reports")
       .add("--scan-class-path");
