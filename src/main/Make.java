@@ -194,7 +194,8 @@ class Make implements ToolProvider {
       var jdeps = new Make.Args().add("-summary");
       if (realm.modules.isEmpty()) {
         // var classPath = new ArrayList<Path>(); // realm "runtime"
-        jdeps.add(jars.get(1));
+        var name = configuration.project.name + '-' + configuration.project.version;
+        jdeps.add(realm.target.resolve(name + ".jar"));
       } else {
         // var modulePath = new ArrayList<Path>();
         // modulePath.add(realm.packagedModules);
