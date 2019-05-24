@@ -496,12 +496,19 @@ class Make implements ToolProvider {
     }
 
     private void junit() {
+      var testClasses = Util.find(test.classicalClasses, "*.class");
+      if (testClasses.isEmpty()) {
+        throw new AssertionError("No test class found in: "+ test.classicalClasses);
+      }
       var junit =
           new Args()
               .add("--fail-if-no-tests")
-              .add("--reports-dir", test.classicalReports)
-              .add("--class-path", test.classicalClasses)
-              .add("--scan-class-path");
+              .add("--reports-dir", test.classicalReports);
+      testClasses.forEach(path -> {
+          var string = test.classicalClasses.relativize(path).toString();
+          var name = string.replace(File.separatorChar, '.').substring(0, string.length() - 6);
+          junit.add("--select-class", name);
+      });
       launchJUnitPlatformConsole(run, newJUnitPlatformClassLoader(), junit);
     }
 
@@ -513,16 +520,19 @@ class Make implements ToolProvider {
       mainPaths.addAll(Util.find(libraries.resolve("main"), "*.jar"));
       mainPaths.addAll(Util.find(libraries.resolve("main-runtime-only"), "*.jar"));
       mainPaths.removeIf(path -> Files.notExists(path));
+      run.log(DEBUG, "mainPaths: %s", mainPaths);
 
       var testPaths = new ArrayList<Path>();
       testPaths.add(test.classicalClasses);
       testPaths.addAll(Util.find(libraries.resolve("test"), "*.jar"));
       testPaths.addAll(Util.find(libraries.resolve("test-runtime-only"), "*.jar"));
       testPaths.removeIf(path -> Files.notExists(path));
+      run.log(DEBUG, "testPaths: %s", testPaths);
 
       var platformPaths = new ArrayList<Path>();
       platformPaths.addAll(Util.find(libraries.resolve("test-runtime-platform"), "*.jar"));
       platformPaths.removeIf(path -> Files.notExists(path));
+      run.log(DEBUG, "platformPaths: %s", platformPaths);
 
       var parent = ClassLoader.getPlatformClassLoader();
       var mainLoader = new URLClassLoader("junit-main", Util.urls(mainPaths), parent);
