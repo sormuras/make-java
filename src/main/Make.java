@@ -184,6 +184,14 @@ class Make implements ToolProvider {
       throw new Error("ConsoleLauncher.execute(...) failed: " + t, t);
     } finally {
       currentThread.setContextClassLoader(currentContextLoader);
+      while (loader instanceof URLClassLoader) {
+        try {
+          ((AutoCloseable) loader).close();
+        } catch (Exception e) {
+          // ignore
+        }
+        loader = loader.getParent();
+      }
     }
   }
 
