@@ -58,7 +58,7 @@ class Make implements ToolProvider {
   /** Test realm. */
   final Realm test;
 
-  private Make(Configuration configuration) {
+  Make(Configuration configuration) {
     this.configuration = configuration;
     this.main = new Realm(configuration, "main");
     this.test = new Realm(configuration, "test");
