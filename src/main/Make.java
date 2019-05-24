@@ -19,6 +19,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Properties;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
 import java.util.spi.ToolProvider;
@@ -188,14 +190,13 @@ class Make implements ToolProvider {
   /** Log summary for given realm. */
   private void summary(Run run, Realm realm) {
     run.log(INFO, "__SUMMARY__");
-    var jars = Util.listPaths(realm.target, "*.jar");
+    var jars = Util.find(realm.target, "*.jar");
     jars.forEach(jar -> run.log(INFO, "  -> %,9d %s", Util.size(jar), jar));
     if (configuration.debug) {
       var jdeps = new Make.Args().add("-summary");
       if (realm.modules.isEmpty()) {
         // var classPath = new ArrayList<Path>(); // realm "runtime"
-        var name = configuration.project.name + '-' + configuration.project.version;
-        jdeps.add(realm.target.resolve(name + ".jar"));
+        jdeps.add(realm.classicalJar);
       } else {
         var modulePath = new ArrayList<Path>();
         modulePath.add(realm.target.resolve("modules"));
@@ -213,10 +214,12 @@ class Make implements ToolProvider {
   static class Project {
     final String name;
     final String version;
+    final String jarBaseName;
 
     Project(String name, String version) {
       this.name = name;
       this.version = version;
+      this.jarBaseName = name.toLowerCase().replace('.', '-') + '-' + version;
     }
 
     @Override
@@ -293,18 +296,6 @@ class Make implements ToolProvider {
               configurator.get("name", home.getFileName().toString()),
               configurator.get("version", "1.0.0-SNAPSHOT"));
       this.threshold = configurator.threshold();
-    }
-
-    Args newJavacArgs(Path destination) {
-      return new Args()
-          .add(false, "-verbose") // that's really(!) verbose...
-          .add("-encoding", "UTF-8")
-          .add("-Xlint")
-          .add("-d", destination);
-    }
-
-    Args newJarArgs(Path file) {
-      return new Args().add(debug, "--verbose").add("--create").add("--file", file);
     }
   }
 
@@ -404,23 +395,52 @@ class Make implements ToolProvider {
     final Path target;
     final List<String> modules;
 
+    final Path classicalClasses;
+    final Path classicalJar;
+    final Path classicalJarSources;
+    final Path classicalReports;
+
     Realm(Configuration configuration, String name) {
       this.name = name;
       this.source = configuration.home.resolve("src").resolve(name);
       this.target = configuration.work.resolve(name);
       this.modules =
-          Util.listPaths(source, "module-info.java").size() > 0
+          Util.find(source, "module-info.java").size() > 0
               ? Util.listDirectoryNames(source)
               : List.of();
+
+      this.classicalClasses = target.resolve("classes");
+      this.classicalJar = target.resolve(configuration.project.jarBaseName + ".jar");
+      this.classicalJarSources = target.resolve(configuration.project.jarBaseName + "-sources.jar");
+      this.classicalReports = target.resolve("reports");
+    }
+  }
+
+  /** Common builder base. */
+  abstract class Builder {
+    final Run run;
+
+    Builder(Run run) {
+      this.run = run;
+    }
+
+    Args newJavacArgs(Path destination) {
+      return new Args()
+          .add(false, "-verbose") // that's really(!) verbose...
+          .add("-encoding", "UTF-8")
+          .add("-Xlint")
+          .add("-d", destination);
+    }
+
+    Args newJarArgs(Path file) {
+      return new Args().add(configuration.debug, "--verbose").add("--create").add("--file", file);
     }
   }
 
   /** Classpath-based builder. */
-  class ClassicalBuilder {
-    final Run run;
-
+  class ClassicalBuilder extends Builder {
     ClassicalBuilder(Run run) {
-      this.run = run;
+      super(run);
     }
 
     void build() {
@@ -439,19 +459,18 @@ class Make implements ToolProvider {
     }
 
     private void compile(Realm realm) {
-      var units = Util.listPaths(realm.source, "*.java");
+      var units = Util.find(realm.source, "*.java");
       if (units.isEmpty()) {
         throw new IllegalStateException("No source files found in: " + realm.source);
       }
       var classPath = new ArrayList<Path>();
       if (realm.name.equals("test")) {
-        var name = configuration.project.name + '-' + configuration.project.version;
-        classPath.add(main.target.resolve(name + ".jar"));
+        classPath.add(main.classicalJar);
       }
       var libraries = configuration.home.resolve("lib");
-      classPath.addAll(Util.listPaths(libraries.resolve(realm.name), "*.jar"));
-      classPath.addAll(Util.listPaths(libraries.resolve(realm.name + "-compile-only"), "*.jar"));
-      var javac = configuration.newJavacArgs(realm.target.resolve("classes"));
+      classPath.addAll(Util.find(libraries.resolve(realm.name), "*.jar"));
+      classPath.addAll(Util.find(libraries.resolve(realm.name + "-compile-only"), "*.jar"));
+      var javac = newJavacArgs(realm.classicalClasses);
       if (!classPath.isEmpty()) {
         javac.add("--class-path", classPath);
       }
@@ -459,17 +478,12 @@ class Make implements ToolProvider {
     }
 
     private void jarClasses(Realm realm) {
-      var destination = realm.target.resolve("classes");
-      var name = configuration.project.name + '-' + configuration.project.version;
-      var file = realm.target.resolve(name + ".jar");
-      var jar = configuration.newJarArgs(file).add("-C", destination).add(".");
+      var jar = newJarArgs(realm.classicalJar).add("-C", realm.classicalClasses).add(".");
       run.tool("jar", jar.toStringArray());
     }
 
     private void jarSources(Realm realm) {
-      var name = configuration.project.name + '-' + configuration.project.version;
-      var file = realm.target.resolve(name + "-sources.jar");
-      var jar = configuration.newJarArgs(file).add("-C", realm.source).add(".");
+      var jar = newJarArgs(realm.classicalJarSources).add("-C", realm.source).add(".");
       run.tool("jar", jar.toStringArray());
     }
 
@@ -477,8 +491,8 @@ class Make implements ToolProvider {
       var junit =
           new Args()
               .add("--fail-if-no-tests")
-              .add("--reports-dir", test.target.resolve("junit-reports"))
-              .add("--class-path", test.target.resolve("classes"))
+              .add("--reports-dir", test.classicalReports)
+              .add("--class-path", test.classicalClasses)
               .add("--scan-class-path");
       launchJUnitPlatformConsole(run, newJUnitPlatformClassLoader(), junit);
     }
@@ -487,20 +501,19 @@ class Make implements ToolProvider {
       var libraries = configuration.home.resolve("lib");
 
       var mainPaths = new ArrayList<Path>();
-      var name = configuration.project.name + '-' + configuration.project.version;
-      mainPaths.add(main.target.resolve(name + ".jar"));
-      mainPaths.addAll(Util.listPaths(libraries.resolve("main"), "*.jar"));
-      mainPaths.addAll(Util.listPaths(libraries.resolve("main-runtime-only"), "*.jar"));
+      mainPaths.add(main.classicalJar);
+      mainPaths.addAll(Util.find(libraries.resolve("main"), "*.jar"));
+      mainPaths.addAll(Util.find(libraries.resolve("main-runtime-only"), "*.jar"));
       mainPaths.removeIf(path -> Files.notExists(path));
 
       var testPaths = new ArrayList<Path>();
-      testPaths.add(test.target.resolve("classes"));
-      testPaths.addAll(Util.listPaths(libraries.resolve("test"), "*.jar"));
-      testPaths.addAll(Util.listPaths(libraries.resolve("test-runtime-only"), "*.jar"));
+      testPaths.add(test.classicalClasses);
+      testPaths.addAll(Util.find(libraries.resolve("test"), "*.jar"));
+      testPaths.addAll(Util.find(libraries.resolve("test-runtime-only"), "*.jar"));
       testPaths.removeIf(path -> Files.notExists(path));
 
       var platformPaths = new ArrayList<Path>();
-      platformPaths.addAll(Util.listPaths(libraries.resolve("test-runtime-platform"), "*.jar"));
+      platformPaths.addAll(Util.find(libraries.resolve("test-runtime-platform"), "*.jar"));
       platformPaths.removeIf(path -> Files.notExists(path));
 
       var parent = ClassLoader.getPlatformClassLoader();
@@ -593,17 +606,17 @@ class Make implements ToolProvider {
           .collect(Collectors.toList());
     }
 
-    /** List paths specified by a glob pattern. */
-    static List<Path> listPaths(Path root, String glob) {
+    /** Find paths specified by a glob pattern. */
+    static Set<Path> find(Path root, String glob) {
       if (Files.notExists(root)) {
-        return List.of();
+        return Set.of();
       }
-      var paths = new ArrayList<Path>();
+      var paths = new TreeSet<Path>();
       for (var directory : listDirectories(root, Integer.MAX_VALUE, true)) {
         try (var stream = Files.newDirectoryStream(directory, glob)) {
           stream.forEach(paths::add);
         } catch (Exception e) {
-          throw new Error("listPaths failed for directory: " + directory, e);
+          throw new Error("find failed for directory: " + directory, e);
         }
       }
       return paths;

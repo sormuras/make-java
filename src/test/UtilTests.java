@@ -8,8 +8,8 @@ import org.junit.jupiter.api.Test;
 class UtilTests {
 
   @Test
-  void listAllJavaSourceAndArchiveFilePaths() {
-    var paths = Make.Util.listPaths(Path.of(""), "*.ja{r,va}");
+  void findAllJavaSourceAndArchiveFilePaths() {
+    var paths = Make.Util.find(Path.of(""), "*.ja{r,va}");
     assertTrue(paths.size() >= 19, "Found only " + paths.size() + " paths: " + paths);
     assertTrue(paths.contains(Path.of("src", "main", "Make.java")), paths.toString());
     assertTrue(paths.contains(Path.of("src", "test", "MakeTests.java")), paths.toString());
