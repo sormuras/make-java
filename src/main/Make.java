@@ -154,9 +154,27 @@ class Make implements ToolProvider {
       new ClassicalBuilder(run).build();
       return;
     }
-    run.log(DEBUG, "Modules in 'main' realm: %s", main.modules);
-    run.log(DEBUG, "Modules in 'test' realm: %s", test.modules);
-    // TODO build modules...
+    if (!main.modules.isEmpty()) {
+      build(run, main, false);
+    }
+    if (!test.modules.isEmpty()) {
+      build(run, test, true);
+    }
+  }
+
+  /** Build given modular realm. */
+  private void build(Run run, Realm realm, boolean compileOnly) {
+    run.log(DEBUG, "Modules in '%s' realm: %s", realm.name, realm.modules);
+    var pendingModules = new ArrayList<>(realm.modules);
+    var builders = List.of(/*new MultiReleaseBuilder(run, realm),*/ new JigsawBuilder(run, realm));
+    for (var builder : builders) {
+      var completedModules = builder.build(pendingModules, compileOnly);
+      pendingModules.removeAll(completedModules);
+      if (pendingModules.isEmpty()) {
+        return;
+      }
+    }
+    throw new IllegalStateException("Pending module list is not empty! " + pendingModules);
   }
 
   private void launchJUnitPlatformConsole(Run run, ClassLoader loader, Args junit) {
@@ -408,6 +426,13 @@ class Make implements ToolProvider {
     final Path classicalJarSources;
     final Path classicalReports;
 
+    final Path compiledMulti;
+    final Path compiledModules;
+    final Path compiledJavadoc;
+    final Path packagedModules;
+    final Path packagedSources;
+    final Path packagedJavadoc;
+
     Realm(Configuration configuration, String name) {
       this.name = name;
       this.source = configuration.home.resolve("src").resolve(name);
@@ -421,6 +446,14 @@ class Make implements ToolProvider {
       this.classicalJar = target.resolve(configuration.project.jarBaseName + ".jar");
       this.classicalJarSources = target.resolve(configuration.project.jarBaseName + "-sources.jar");
       this.classicalReports = target.resolve("reports");
+
+      var compiledBase = target.resolve("compiled");
+      this.compiledJavadoc = compiledBase.resolve("javadoc");
+      this.compiledModules = compiledBase.resolve("modules");
+      this.compiledMulti = compiledBase.resolve("multi-release");
+      this.packagedJavadoc = target.resolve("javadoc");
+      this.packagedModules = target.resolve("modules");
+      this.packagedSources = target.resolve("sources");
     }
   }
 
@@ -538,6 +571,84 @@ class Make implements ToolProvider {
       var mainLoader = new URLClassLoader("junit-main", Util.urls(mainPaths), parent);
       var testLoader = new URLClassLoader("junit-test", Util.urls(testPaths), mainLoader);
       return new URLClassLoader("junit-platform", Util.urls(platformPaths), testLoader);
+    }
+  }
+
+  /** Build modules using default jigsaw directory layout. */
+  class JigsawBuilder extends Builder {
+    final Realm realm;
+
+    JigsawBuilder(Run run, Realm realm) {
+      super(run);
+      this.realm = realm;
+    }
+
+    /** Build given modules and return list of modules actually built. */
+    List<String> build(List<String> modules, boolean compileOnly) {
+      run.log(DEBUG, "Building %d Jigsaw module(s): %s", modules.size(), modules);
+      compile(modules);
+      if (compileOnly) {
+        return modules;
+      }
+      try {
+        for (var module : modules) {
+          jarModule(module);
+          jarSources(module);
+          // TODO Create javadoc and "-javadoc.jar" for this module
+        }
+      } catch (Exception e) {
+        throw new Error("Building modules failed!", e);
+      }
+      return modules;
+    }
+
+    private void compile(List<String> modules) {
+      var javac =
+          newJavacArgs(realm.compiledModules)
+              .add("--module-version", configuration.project.version)
+              .add("--module-source-path", realm.source)
+              .add("--module", String.join(",", modules));
+
+      var modulePath = new ArrayList<Path>();
+      if (Files.exists(realm.packagedModules)) {
+        modulePath.add(realm.packagedModules);
+      }
+      // TODO modulePath.addAll(realm.modulePaths.get("compile"));
+      if (!modulePath.isEmpty()) {
+        javac.add("--module-path", modulePath);
+      }
+
+      // TODO for (var entry : realm.patches.entrySet()) {
+      //        var module = entry.getKey();
+      //        var patches = entry.getValue();
+      //        javac.with("--patch-module", patches, paths -> module + "=" + paths);
+      //      }
+
+      run.tool("javac", javac.toStringArray());
+    }
+
+    private void jarModule(String module) throws Exception {
+      var compiledModules = realm.target.resolve("compiled/modules");
+      var modularJar =
+          realm.packagedModules.resolve(module + '-' + configuration.project.version + ".jar");
+      var jar =
+          newJarArgs(modularJar)
+              .add("--warn-if-resolved", "deprecated")
+              .add("--warn-if-resolved", "deprecated-for-removal")
+              .add("--warn-if-resolved", "incubating")
+              .add("-C", compiledModules.resolve(module))
+              .add(".");
+      Files.createDirectories(realm.packagedModules);
+      run.tool("jar", jar.toStringArray());
+    }
+
+    private void jarSources(String module) throws Exception {
+      var sourcesJar =
+          realm.packagedSources.resolve(
+              module + '-' + configuration.project.version + "-sources.jar");
+      var jar = newJarArgs(sourcesJar).add("-C", realm.source.resolve(module)).add(".");
+      Files.createDirectories(realm.packagedSources);
+      run.tool("jar", jar.toStringArray());
     }
   }
 
