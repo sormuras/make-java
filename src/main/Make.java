@@ -168,7 +168,7 @@ class Make implements ToolProvider {
     currentThread.setContextClassLoader(loader);
     try {
       var launcher = loader.loadClass("org.junit.platform.console.ConsoleLauncher");
-      var params = new Class[] {PrintStream.class, PrintStream.class, String[].class};
+      var params = new Class<?>[] {PrintStream.class, PrintStream.class, String[].class};
       var execute = launcher.getMethod("execute", params);
       var out = new ByteArrayOutputStream();
       var err = new ByteArrayOutputStream();
