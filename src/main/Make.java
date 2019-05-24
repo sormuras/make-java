@@ -531,17 +531,15 @@ class Make implements ToolProvider {
     private void junit() {
       var testClasses = Util.find(test.classicalClasses, "*.class");
       if (testClasses.isEmpty()) {
-        throw new AssertionError("No test class found in: "+ test.classicalClasses);
+        throw new AssertionError("No test class found in: " + test.classicalClasses);
       }
-      var junit =
-          new Args()
-              .add("--fail-if-no-tests")
-              .add("--reports-dir", test.classicalReports);
-      testClasses.forEach(path -> {
-          var string = test.classicalClasses.relativize(path).toString();
-          var name = string.replace(File.separatorChar, '.').substring(0, string.length() - 6);
-          junit.add("--select-class", name);
-      });
+      var junit = new Args().add("--fail-if-no-tests").add("--reports-dir", test.classicalReports);
+      testClasses.forEach(
+          path -> {
+            var string = test.classicalClasses.relativize(path).toString();
+            var name = string.replace(File.separatorChar, '.').substring(0, string.length() - 6);
+            junit.add("--select-class", name);
+          });
       launchJUnitPlatformConsole(run, newJUnitPlatformClassLoader(), junit);
     }
 
