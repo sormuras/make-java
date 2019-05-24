@@ -166,8 +166,8 @@ class Make implements ToolProvider {
     currentThread.setContextClassLoader(loader);
     try {
       var launcher = loader.loadClass("org.junit.platform.console.ConsoleLauncher");
-      var execute =
-          launcher.getMethod("execute", PrintStream.class, PrintStream.class, String[].class);
+      var params = new Class[] {PrintStream.class, PrintStream.class, String[].class};
+      var execute = launcher.getMethod("execute", params);
       var out = new ByteArrayOutputStream();
       var err = new ByteArrayOutputStream();
       var args = junit.toStringArray();
@@ -189,7 +189,7 @@ class Make implements ToolProvider {
   private void summary(Run run, Realm realm) {
     run.log(INFO, "__SUMMARY__");
     var jars = Util.listPaths(realm.target, "*.jar");
-    jars.forEach(jar -> run.log(INFO, "  -> " + jar));
+    jars.forEach(jar -> run.log(INFO, "  -> %,9d %s", Util.size(jar), jar));
     if (configuration.debug) {
       var jdeps = new Make.Args().add("-summary");
       if (realm.modules.isEmpty()) {
@@ -197,11 +197,11 @@ class Make implements ToolProvider {
         var name = configuration.project.name + '-' + configuration.project.version;
         jdeps.add(realm.target.resolve(name + ".jar"));
       } else {
-        // var modulePath = new ArrayList<Path>();
-        // modulePath.add(realm.packagedModules);
+        var modulePath = new ArrayList<Path>();
+        modulePath.add(realm.target.resolve("modules"));
         // modulePath.addAll(realm.modulePaths.get("runtime"));
         jdeps
-            // .add("--module-path", modulePath)
+            .add("--module-path", modulePath)
             .add("--add-modules", String.join(",", realm.modules))
             .add("--multi-release", "base");
       }
@@ -265,7 +265,7 @@ class Make implements ToolProvider {
         try (var stream = Files.newBufferedReader(path)) {
           properties.load(stream);
         } catch (Exception e) {
-          throw new RuntimeException("Loading properties failed: " + path, e);
+          throw new Error("Loading properties failed: " + path, e);
         }
       }
       return properties;
@@ -345,7 +345,7 @@ class Make implements ToolProvider {
         log(DEBUG, "Tool '%s' successfully run.", name);
         return;
       }
-      throw new RuntimeException("Tool '" + name + "' run failed with error code: " + code);
+      throw new Error("Tool '" + name + "' run failed with error code: " + code);
     }
 
     long toDurationMillis() {
@@ -504,9 +504,9 @@ class Make implements ToolProvider {
       platformPaths.removeIf(path -> Files.notExists(path));
 
       var parent = ClassLoader.getPlatformClassLoader();
-      var mainLoader = new URLClassLoader("junit-main", Util.toUrls(mainPaths), parent);
-      var testLoader = new URLClassLoader("junit-test", Util.toUrls(testPaths), mainLoader);
-      return new URLClassLoader("junit-platform", Util.toUrls(platformPaths), testLoader);
+      var mainLoader = new URLClassLoader("junit-main", Util.urls(mainPaths), parent);
+      var testLoader = new URLClassLoader("junit-test", Util.urls(testPaths), mainLoader);
+      return new URLClassLoader("junit-platform", Util.urls(platformPaths), testLoader);
     }
   }
 
@@ -609,7 +609,17 @@ class Make implements ToolProvider {
       return paths;
     }
 
-    static URL[] toUrls(Collection<Path> paths) {
+    /** Get file size. */
+    static long size(Path path) {
+      try {
+        return Files.size(path);
+      } catch (Exception e) {
+        throw new Error("size failed for path: " + path, e);
+      }
+    }
+
+    /** Convert a collection of paths to an array of urls. */
+    static URL[] urls(Collection<Path> paths) {
       var urls = new URL[paths.size()];
       var index = 0;
       try {
@@ -617,7 +627,7 @@ class Make implements ToolProvider {
           urls[index++] = path.toUri().toURL();
         }
       } catch (Exception e) {
-        throw new Error("toUrls failed: " + paths, e);
+        throw new Error("urls failed for paths: " + paths, e);
       }
       return urls;
     }
