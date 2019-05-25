@@ -62,6 +62,9 @@ class DemoTests {
               "Making class-path 1.0.0-SNAPSHOT...",
               "Make.java " + Make.VERSION,
               ">> BUILD >>",
+              "[         2 tests successful      ]",
+              "[         0 tests failed          ]",
+              ">> SUMMARY >>",
               "Build successful after \\d+ ms\\."),
           run.normalLines());
 
@@ -111,7 +114,54 @@ class DemoTests {
 
     @Test
     void run(@TempDir Path work) {
-      new TestRun().run(1, home, work);
+      var run = new TestRun().run(0, home, work);
+
+      assertLinesMatch(
+          List.of(
+              "main",
+              "main/compiled",
+              "main/compiled/modules",
+              "main/compiled/modules/com.greetings",
+              "main/compiled/modules/com.greetings/com",
+              "main/compiled/modules/com.greetings/com/greetings",
+              "main/compiled/modules/com.greetings/com/greetings/Main.class",
+              "main/compiled/modules/com.greetings/module-info.class",
+              "main/compiled/modules/org.astro",
+              "main/compiled/modules/org.astro/module-info.class",
+              "main/compiled/modules/org.astro/org",
+              "main/compiled/modules/org.astro/org/astro",
+              "main/compiled/modules/org.astro/org/astro/World.class",
+              "main/modules",
+              "main/modules/com.greetings-1.0.0-SNAPSHOT.jar",
+              "main/modules/org.astro-1.0.0-SNAPSHOT.jar",
+              "main/sources",
+              "main/sources/com.greetings-1.0.0-SNAPSHOT-sources.jar",
+              "main/sources/org.astro-1.0.0-SNAPSHOT-sources.jar",
+              "test",
+              "test/compiled",
+              "test/compiled/modules",
+              "test/compiled/modules/integration",
+              "test/compiled/modules/integration/integration",
+              "test/compiled/modules/integration/integration/IntegrationTests.class",
+              "test/compiled/modules/integration/integration/MainTests.class",
+              "test/compiled/modules/integration/module-info.class",
+              "test/compiled/modules/org.astro",
+              "test/compiled/modules/org.astro/module-info.class",
+              "test/compiled/modules/org.astro/org",
+              "test/compiled/modules/org.astro/org/astro",
+              "test/compiled/modules/org.astro/org/astro/World.class",
+              "test/compiled/modules/org.astro/org/astro/WorldTests.class"),
+          TestRun.treeWalk(work));
+
+      // assertTrue(
+      //    run.normalLines().contains("[         2 tests successful      ]"), run.out.toString());
+
+      assertLinesMatch(
+          List.of(
+              "warning: using incubating module(s): com.greetings",
+              ">> 2x 'warning: requires directive for an automatic module' >>",
+              "3 warnings"),
+          run.errorLines());
     }
   }
 }

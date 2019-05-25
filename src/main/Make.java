@@ -18,8 +18,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
@@ -607,20 +609,27 @@ class Make implements ToolProvider {
               .add("--module-source-path", realm.source)
               .add("--module", String.join(",", modules));
 
+      var libraries = configuration.home.resolve("lib");
       var modulePath = new ArrayList<Path>();
-      if (Files.exists(realm.packagedModules)) {
-        modulePath.add(realm.packagedModules);
+      if (realm.name.equals("test")) {
+        modulePath.add(main.packagedModules);
+        modulePath.add(libraries.resolve("main"));
       }
-      // TODO modulePath.addAll(realm.modulePaths.get("compile"));
+      modulePath.add(realm.packagedModules); // modules from previous builders
+      modulePath.add(libraries.resolve(realm.name));
+      modulePath.add(libraries.resolve(realm.name + "-compile-only"));
+      modulePath.removeIf(path -> Files.notExists(path));
       if (!modulePath.isEmpty()) {
         javac.add("--module-path", modulePath);
       }
-
-      // TODO for (var entry : realm.patches.entrySet()) {
-      //        var module = entry.getKey();
-      //        var patches = entry.getValue();
-      //        javac.with("--patch-module", patches, paths -> module + "=" + paths);
-      //      }
+      if (realm.name.equals("test")) {
+        var map = Util.findPatchMap(Set.of(realm.source), Set.of(main.source));
+        for (var entry : map.entrySet()) {
+          var module = entry.getKey();
+          var patches = entry.getValue();
+          javac.add("--patch-module", patches, paths -> module + "=" + paths);
+        }
+      }
 
       run.tool("javac", javac.toStringArray());
     }
@@ -747,6 +756,22 @@ class Make implements ToolProvider {
         }
       }
       return paths;
+    }
+
+    /** Return patch map using two collections of paths. */
+    static Map<String, Set<Path>> findPatchMap(Collection<Path> bases, Collection<Path> patches) {
+      var map = new TreeMap<String, Set<Path>>();
+      for (var base : bases) {
+        for (var name : listDirectoryNames(base)) {
+          for (var patch : patches) {
+            var candidate = patch.resolve(name);
+            if (Files.isDirectory(candidate)) {
+              map.computeIfAbsent(name, __ -> new TreeSet<>()).add(candidate);
+            }
+          }
+        }
+      }
+      return map;
     }
 
     /** Get file size. */
