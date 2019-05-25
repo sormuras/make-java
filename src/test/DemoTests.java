@@ -42,32 +42,25 @@ class DemoTests {
       var run = new TestRun();
       assertEquals(0, make.run(run, List.of()), run.toString());
 
-      var classes = make.main.classicalClasses;
-      assertTrue(Files.isDirectory(classes));
-      assertTrue(Files.isRegularFile(classes.resolve("com/greetings/Main.class")));
-
       assertLinesMatch(
           List.of(
-              "main"
-                  , "main/class-path-1.0.0-SNAPSHOT-sources.jar"
-                  , "main/class-path-1.0.0-SNAPSHOT.jar"
-                  , "main/classes"
-                  , "main/classes/com"
-                  , "main/classes/com/greetings"
-                  , "main/classes/com/greetings/Main.class"
-                  , "test"
-                  , "test/classes"
-                  , "test/classes/com"
-                  , "test/classes/com/greetings"
-                  , "test/classes/com/greetings/MainTests.class"
-                  , "test/reports"
-                  , "test/reports/TEST-junit-jupiter.xml"
-                  , "test/reports/TEST-junit-vintage.xml"),
+              "main",
+              "main/class-path-1.0.0-SNAPSHOT-sources.jar",
+              "main/class-path-1.0.0-SNAPSHOT.jar",
+              "main/classes",
+              "main/classes/com",
+              "main/classes/com/greetings",
+              "main/classes/com/greetings/Main.class",
+              "test",
+              "test/classes",
+              "test/classes/com",
+              "test/classes/com/greetings",
+              "test/classes/com/greetings/MainTests.class",
+              "test/reports",
+              "test/reports/TEST-junit-jupiter.xml",
+              "test/reports/TEST-junit-vintage.xml"),
           TestRun.treeWalk(work));
-//      var modularJar = main.packagedModules.resolve(module + "-" + version + ".jar");
-//      var sourcesJar = main.packagedSources.resolve(module + "-" + version + "-sources.jar");
-//      debug.tool("jar", "--describe-module", "--file", modularJar.toString());
-//      debug.tool("jar", "--list", "--file", sourcesJar.toString());
+
       assertLinesMatch(
           List.of(
               "__BEGIN__",
@@ -76,21 +69,29 @@ class DemoTests {
               ">> BUILD >>",
               "Build successful after \\d+ ms\\."),
           run.normalLines());
+
+      assertLinesMatch(List.of(), run.errorLines());
     }
-
   }
 
-  @Test
-  void demoJigsawQuickStartGreetings() {
-    var make = Make.of(Path.of("demo", "jigsaw-quick-start", "greetings"));
-    assertLinesMatch(List.of("com.greetings"), make.main.modules);
-    assertLinesMatch(List.of(), make.test.modules);
+  @Nested
+  class JigsawGreetings {
+    @Test
+    void checkModules() {
+      var make = Make.of(Path.of("demo", "jigsaw-quick-start", "greetings"));
+      assertLinesMatch(List.of("com.greetings"), make.main.modules);
+      assertLinesMatch(List.of(), make.test.modules);
+    }
   }
 
-  @Test
-  void demoJigsawQuickStartGreetingsWorldWithMainAndTest() {
-    var make = Make.of(Path.of("demo", "jigsaw-quick-start", "greetings-world-with-main-and-test"));
-    assertLinesMatch(List.of("com.greetings", "org.astro"), make.main.modules);
-    assertLinesMatch(List.of("integration", "org.astro"), make.test.modules);
+  @Nested
+  class JigsawGreetingsWorldWithMainAndTest {
+    @Test
+    void checkModules() {
+      var make =
+          Make.of(Path.of("demo", "jigsaw-quick-start", "greetings-world-with-main-and-test"));
+      assertLinesMatch(List.of("com.greetings", "org.astro"), make.main.modules);
+      assertLinesMatch(List.of("integration", "org.astro"), make.test.modules);
+    }
   }
 }
