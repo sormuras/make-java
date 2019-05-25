@@ -1,3 +1,4 @@
+import static java.lang.ModuleLayer.defineModulesWithOneLoader;
 import static java.lang.System.Logger.Level.DEBUG;
 import static java.lang.System.Logger.Level.ERROR;
 import static java.lang.System.Logger.Level.INFO;
@@ -7,6 +8,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.PrintStream;
 import java.io.PrintWriter;
+import java.lang.module.ModuleFinder;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -63,7 +65,7 @@ class Make implements ToolProvider {
   Make(Configuration configuration) {
     this.configuration = configuration;
     this.main = new Realm(configuration, "main");
-    this.test = new Realm(configuration, "test");
+    this.test = new Realm(configuration, "test", main);
   }
 
   @Override
@@ -161,6 +163,9 @@ class Make implements ToolProvider {
     }
     if (!test.modules.isEmpty()) {
       build(run, test, true);
+      if (configuration.doLaunchJUnitPlatform) {
+        junit(run, test);
+      }
     }
   }
 
@@ -177,6 +182,39 @@ class Make implements ToolProvider {
       }
     }
     throw new IllegalStateException("Pending module list is not empty! " + pendingModules);
+  }
+
+  /** Launch JUnit Platform for given modular realm. */
+  private void junit(Run run, Realm realm) {
+    var junit =
+        new Args()
+            .add("--fail-if-no-tests")
+            .add("--reports-dir", realm.target.resolve("junit-reports"))
+            .add("--scan-modules");
+
+    var modulePath = new ArrayList<Path>();
+    modulePath.add(realm.compiledModules); // grab test modules
+    modulePath.addAll(realm.modulePath(configuration.home.resolve("lib"), "runtime"));
+    var finder = ModuleFinder.of(modulePath.toArray(Path[]::new));
+    for (var reference : finder.findAll()) {
+      run.log(DEBUG, "  -> %s", reference);
+    }
+    var rootModules = new ArrayList<String>();
+    rootModules.add("org.junit.platform.console");
+    rootModules.add("org.junit.jupiter.engine");
+    // TODO Add "all-module-path" entries to resolve all engines?
+    rootModules.addAll(realm.modules);
+    var boot = ModuleLayer.boot();
+    var configuration = boot.configuration().resolve(finder, ModuleFinder.of(), rootModules);
+    var parentLoader = ClassLoader.getPlatformClassLoader();
+    var controller = defineModulesWithOneLoader(configuration, List.of(boot), parentLoader);
+    var junitConsoleLayer = controller.layer();
+    controller.addExports( // "Make.java" resides in an unnamed module...
+        junitConsoleLayer.findModule("org.junit.platform.console").orElseThrow(),
+        "org.junit.platform.console",
+        Make.class.getModule());
+    var junitConsoleLoader = junitConsoleLayer.findLoader("org.junit.platform.console");
+    launchJUnitPlatformConsole(run, junitConsoleLoader, junit);
   }
 
   private void launchJUnitPlatformConsole(Run run, ClassLoader loader, Args junit) {
@@ -419,6 +457,8 @@ class Make implements ToolProvider {
   /** Modular source set. */
   static class Realm {
     final String name;
+    final List<Realm> requiredRealms;
+
     final Path source;
     final Path target;
     final List<String> modules;
@@ -435,8 +475,10 @@ class Make implements ToolProvider {
     final Path packagedSources;
     final Path packagedJavadoc;
 
-    Realm(Configuration configuration, String name) {
+    Realm(Configuration configuration, String name, Realm... requiredRealms) {
       this.name = name;
+      this.requiredRealms = List.of(requiredRealms);
+
       this.source = configuration.home.resolve("src").resolve(name);
       this.target = configuration.work.resolve(name);
       this.modules =
@@ -456,6 +498,21 @@ class Make implements ToolProvider {
       this.packagedJavadoc = target.resolve("javadoc");
       this.packagedModules = target.resolve("modules");
       this.packagedSources = target.resolve("sources");
+    }
+
+    /** Create module path. */
+    List<Path> modulePath(Path libraries, String phase) {
+      var result = new ArrayList<Path>();
+      var candidates = List.of(name, name + "-" + phase + "-only");
+      for (var candidate : candidates) {
+        result.add(libraries.resolve(candidate));
+      }
+      for (var required : requiredRealms) {
+        result.add(required.packagedModules);
+        result.addAll(required.modulePath(libraries, phase));
+      }
+      result.removeIf(Files::notExists);
+      return result;
     }
   }
 

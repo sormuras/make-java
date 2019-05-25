@@ -113,7 +113,9 @@ class DemoTests {
     }
 
     @Test
-    void run(@TempDir Path work) {
+    void run(/*@TempDir Path work*/ ) throws Exception {
+      // https://github.com/junit-team/junit5/issues/1896 -- scanning modules locks jars!
+      var work = Files.createTempDirectory("make-java-demo-GWwMaT-");
       var run = new TestRun().run(0, home, work);
 
       assertLinesMatch(
@@ -150,11 +152,22 @@ class DemoTests {
               "test/compiled/modules/org.astro/org",
               "test/compiled/modules/org.astro/org/astro",
               "test/compiled/modules/org.astro/org/astro/World.class",
-              "test/compiled/modules/org.astro/org/astro/WorldTests.class"),
+              "test/compiled/modules/org.astro/org/astro/WorldTests.class",
+              "test/junit-reports",
+              "test/junit-reports/TEST-junit-jupiter.xml"),
           TestRun.treeWalk(work));
 
-      // assertTrue(
-      //    run.normalLines().contains("[         2 tests successful      ]"), run.out.toString());
+      assertLinesMatch(
+          List.of(
+              "__BEGIN__",
+              "Making greetings-world-with-main-and-test 1.0.0-SNAPSHOT...",
+              "Make.java " + Make.VERSION,
+              ">> BUILD >>",
+              "[         4 tests successful      ]",
+              "[         0 tests failed          ]",
+              ">> SUMMARY >>",
+              "Build successful after \\d+ ms\\."),
+          run.normalLines());
 
       assertLinesMatch(
           List.of(
