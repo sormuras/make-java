@@ -349,7 +349,7 @@ class Make implements ToolProvider {
     final System.Logger.Level threshold;
 
     Configuration(Path home, Properties properties) {
-      this.home = USER_PATH.relativize(home.toAbsolutePath().normalize());
+      this.home = USER_PATH.getRoot().equals(home.getRoot()) ? USER_PATH.relativize(home) : home;
 
       var configurator = new Configurator(properties);
       this.debug = configurator.is("debug", "false");
