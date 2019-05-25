@@ -1,4 +1,5 @@
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
@@ -6,6 +7,11 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class MakeTests {
+  @Test
+  void userPathHasNonNullRoot() {
+    assertNotNull(Make.USER_PATH.getRoot());
+  }
+
   @Test
   void defaults() {
     var make = Make.of(Path.of(".").normalize().toAbsolutePath());
