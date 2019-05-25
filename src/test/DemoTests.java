@@ -6,8 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Properties;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -17,21 +17,19 @@ class DemoTests {
   @Nested
   class ClassPath {
 
+    Path home = Path.of("demo", "class-path");
+
     @Test
     void checkModules() {
-      var make = Make.of(Path.of("demo", "class-path"));
+      var make = Make.of(home);
       assertLinesMatch(List.of(), make.main.modules);
       assertLinesMatch(List.of(), make.test.modules);
     }
 
     @Test
     void run(@TempDir Path work) throws Exception {
-      var home = Path.of("demo", "class-path");
-      var properties = new Properties();
-      properties.setProperty("debug", "true");
-      properties.setProperty("work", work.toString());
-      var configuration = new Make.Configuration(home, properties);
-      var make = new Make(configuration);
+      var run = new TestRun();
+      var make = run.make(home, work);
 
       assertTrue(make.configuration.debug);
       assertFalse(make.configuration.dryRun);
@@ -39,7 +37,6 @@ class DemoTests {
       assertEquals("1.0.0-SNAPSHOT", make.configuration.project.version);
       assertTrue(Files.isSameFile(home, make.configuration.home));
 
-      var run = new TestRun();
       assertEquals(0, make.run(run, List.of()), run.toString());
 
       assertLinesMatch(
@@ -76,22 +73,48 @@ class DemoTests {
 
   @Nested
   class JigsawGreetings {
+
+    Path home = Path.of("demo", "jigsaw-quick-start", "greetings");
+
     @Test
     void checkModules() {
-      var make = Make.of(Path.of("demo", "jigsaw-quick-start", "greetings"));
+      var make = Make.of(home);
       assertLinesMatch(List.of("com.greetings"), make.main.modules);
       assertLinesMatch(List.of(), make.test.modules);
+    }
+
+    @Test
+    void run(@TempDir Path work) {
+      var run = new TestRun().run(0, home, work);
+      assertLinesMatch(
+          List.of(
+              "__BEGIN__",
+              "Making greetings 1.0.0-SNAPSHOT...",
+              ">> BUILD >>",
+              "__END.__",
+              "Build successful after \\d+ ms\\."),
+          run.normalLines());
+
+      assertLinesMatch(List.of(), run.errorLines());
     }
   }
 
   @Nested
   class JigsawGreetingsWorldWithMainAndTest {
+
+    Path home = Path.of("demo", "jigsaw-quick-start", "greetings-world-with-main-and-test");
+
     @Test
     void checkModules() {
-      var make =
-          Make.of(Path.of("demo", "jigsaw-quick-start", "greetings-world-with-main-and-test"));
+      var make = Make.of(home);
       assertLinesMatch(List.of("com.greetings", "org.astro"), make.main.modules);
       assertLinesMatch(List.of("integration", "org.astro"), make.test.modules);
+    }
+
+    @Test
+    @Disabled
+    void run(@TempDir Path work) {
+      new TestRun().run(1, home, work);
     }
   }
 }

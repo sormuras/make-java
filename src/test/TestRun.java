@@ -4,6 +4,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Properties;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -42,6 +43,22 @@ class TestRun extends Make.Run {
     super(System.Logger.Level.ALL, new PrintWriter(out), new PrintWriter(err));
     this.out = out;
     this.err = err;
+  }
+
+  Make make(Path home, Path work) {
+    var properties = new Properties();
+    properties.setProperty("debug", "true");
+    properties.setProperty("work", work.toString());
+    var configuration = new Make.Configuration(home, properties);
+    return new Make(configuration);
+  }
+
+  TestRun run(int expected, Path home, Path work, String... args) {
+    var code = make(home, work).run(this, List.of(args));
+    if (expected == code) {
+      return this;
+    }
+    throw new AssertionError("Run finished with exit code " + code + toString());
   }
 
   List<String> normalLines() {
