@@ -23,7 +23,7 @@ class IntegrationTests {
     var exception =
         assertThrows(
             IllegalAccessException.class,
-            () -> main.getMethod("main", String[].class).invoke(null, null));
+            () -> main.getMethod("main", String[].class).invoke(null, (Object) null));
 
     assertEquals(
         "class integration.IntegrationTests (in module integration)"
