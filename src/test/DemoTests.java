@@ -113,9 +113,7 @@ class DemoTests {
     }
 
     @Test
-    void run(/*@TempDir Path work*/ ) throws Exception {
-      // https://github.com/junit-team/junit5/issues/1896 -- scanning modules locks jars!
-      var work = Files.createTempDirectory("make-java-demo-GWwMaT-");
+    void run(@TempDir Path work) {
       var run = new TestRun().run(0, home, work);
 
       assertLinesMatch(

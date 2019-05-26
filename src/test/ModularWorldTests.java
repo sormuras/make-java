@@ -18,9 +18,7 @@ class ModularWorldTests {
   private static final String VERSION = "0.4";
 
   @TestFactory
-  Stream<DynamicTest> buildModularWorld(@TempDir Path temp2) throws Exception {
-    // https://github.com/junit-team/junit5/issues/1896 -- locked jars!
-    var temp = Files.createTempDirectory("modular-world-tests-");
+  Stream<DynamicTest> buildModularWorld(@TempDir Path temp) throws Exception {
     // download and extract
     var uri = URI.create("https://github.com/sormuras/modular-world/archive/" + VERSION + ".zip");
     var zip = new Make.Downloader(temp, Boolean.getBoolean("offline")).transfer(uri);

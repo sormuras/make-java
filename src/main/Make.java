@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -186,6 +187,7 @@ class Make implements ToolProvider {
   }
 
   /** Launch JUnit Platform for given modular realm. */
+  @SuppressWarnings("UnusedAssignment")
   private void junit(Run run, Realm realm) {
     var junit =
         new Args()
@@ -216,6 +218,17 @@ class Make implements ToolProvider {
         Make.class.getModule());
     var junitConsoleLoader = junitConsoleLayer.findLoader("org.junit.platform.console");
     launchJUnitPlatformConsole(run, junitConsoleLoader, junit);
+    if (System.getProperty("os.name", "?").toLowerCase(Locale.ENGLISH).contains("win")) {
+      try {
+        controller = null;
+        junitConsoleLayer = null;
+        junitConsoleLoader = null;
+        System.gc();
+        Thread.sleep(1234);
+      } catch (InterruptedException e) {
+        // ignore
+      }
+    }
   }
 
   private void launchJUnitPlatformConsole(Run run, ClassLoader loader, Args junit) {
