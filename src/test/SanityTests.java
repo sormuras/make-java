@@ -38,7 +38,7 @@ class SanityTests {
     process.getOutputStream().write("var code = make.run(System.out, System.err)\n".getBytes());
     process.getOutputStream().write("/exit code\n".getBytes());
     process.getOutputStream().flush();
-    process.waitFor(9, TimeUnit.SECONDS);
+    process.waitFor(19, TimeUnit.SECONDS);
     assertStreams(List.of(), process);
     assertEquals(0, process.exitValue(), process.toString());
   }
@@ -50,7 +50,7 @@ class SanityTests {
     builder.command().add("-Debug");
     builder.command().add("src/main/Make.java");
     var process = builder.start();
-    process.waitFor(9, TimeUnit.SECONDS);
+    process.waitFor(19, TimeUnit.SECONDS);
     assertStreams(List.of(), process);
     assertEquals(0, process.exitValue(), process.toString());
   }
