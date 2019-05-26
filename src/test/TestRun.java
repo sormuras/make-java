@@ -49,6 +49,7 @@ class TestRun extends Make.Run {
     var properties = new Properties();
     properties.setProperty("debug", "true");
     properties.setProperty("work", work.toString());
+    properties.setProperty("do-launch-junit-platform", "true");
     var configuration = new Make.Configuration(home, properties);
     return new Make(configuration);
   }
