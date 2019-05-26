@@ -27,6 +27,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
+import java.util.regex.Pattern;
 import java.util.spi.ToolProvider;
 import java.util.stream.Collectors;
 
@@ -173,7 +174,7 @@ class Make implements ToolProvider {
   private void build(Run run, Realm realm, boolean compileOnly) {
     run.log(DEBUG, "Modules in '%s' realm: %s", realm.name, realm.modules);
     var pendingModules = new ArrayList<>(realm.modules);
-    var builders = List.of(/*new MultiReleaseBuilder(run, realm),*/ new JigsawBuilder(run, realm));
+    var builders = List.of(new MultiReleaseBuilder(run, realm), new JigsawBuilder(run, realm));
     for (var builder : builders) {
       var completedModules = builder.build(pendingModules, compileOnly);
       pendingModules.removeAll(completedModules);
@@ -717,6 +718,144 @@ class Make implements ToolProvider {
               module + '-' + configuration.project.version + "-sources.jar");
       var jar = newJarArgs(sourcesJar).add("-C", realm.source.resolve(module)).add(".");
       Files.createDirectories(realm.packagedSources);
+      run.tool("jar", jar.toStringArray());
+    }
+  }
+
+  /** Build multi-release modules. */
+  class MultiReleaseBuilder extends Builder {
+
+    final Realm realm;
+    final Pattern javaReleasePattern = Pattern.compile("java-\\d+");
+
+    MultiReleaseBuilder(Run run, Realm realm) {
+      super(run);
+      this.realm = realm;
+    }
+
+    @Override
+    List<String> build(List<String> modules, boolean compileOnly) {
+      var result = new ArrayList<String>();
+      for (var module : modules) {
+        if (build(module, compileOnly)) {
+          result.add(module);
+        }
+      }
+      return result;
+    }
+
+    private boolean build(String module, boolean compileOnly) {
+      var names = Util.listDirectoryNames(realm.source.resolve(module));
+      if (names.isEmpty()) {
+        return false; // empty source path or just a sole "module-info.java" file...
+      }
+      if (!names.stream().allMatch(javaReleasePattern.asMatchPredicate())) {
+        return false;
+      }
+      run.log(DEBUG, "Building multi-release module: %s", module);
+      int base = Util.findBaseJavaFeatureNumber(names);
+      run.log(DEBUG, "Base feature number is: %d", base);
+      for (var release = base; release <= Runtime.version().feature(); release++) {
+        compile(module, base, release);
+      }
+      if (compileOnly) {
+        return true;
+      }
+      try {
+        jarModule(module, base);
+        jarSources(module, base);
+        // TODO Create "-javadoc.jar" for this multi-release module
+      } catch (Exception e) {
+        throw new Error("Building module " + module + " failed!", e);
+      }
+      return true;
+    }
+
+    private void compile(String module, int base, int release) {
+      var javaR = "java-" + release;
+      var source = realm.source.resolve(module).resolve(javaR);
+      if (Files.notExists(source)) {
+        run.log(DEBUG, "Skipping %s, no source path exists: %s", javaR, source);
+        return;
+      }
+      var destination = realm.compiledMulti.resolve(javaR);
+      var javac =
+          new Args()
+              .add(false, "-verbose")
+              .add("-encoding", "UTF-8")
+              .add("-Xlint")
+              .add("--release", release);
+      if (release < 9) {
+        javac.add("-d", destination.resolve(module));
+        // TODO "-cp" ...
+        javac.addEach(Util.find(source, "*.java"));
+      } else {
+        javac.add("-d", destination);
+        javac.add("--module-version", configuration.project.version);
+        javac.add("--module-path", realm.modulePath(configuration.home.resolve("lib"), "compile"));
+        var pathR = realm.source + File.separator + "*" + File.separator + javaR;
+        var sources = List.of(pathR, "" + realm.source);
+        javac.add("--module-source-path", String.join(File.pathSeparator, sources));
+        javac.add(
+            "--patch-module",
+            module + '=' + realm.compiledMulti.resolve("java-" + base).resolve(module));
+        javac.add("--module", module);
+      }
+      run.tool("javac", javac.toStringArray());
+    }
+
+    private void jarModule(String module, int base) throws Exception {
+      Files.createDirectories(realm.packagedModules);
+      var file =
+          realm.packagedModules.resolve(module + '-' + configuration.project.version + ".jar");
+      var source = realm.compiledMulti;
+      var javaBase = source.resolve("java-" + base).resolve(module);
+      var jar =
+          new Args()
+              .add(configuration.debug, "--verbose")
+              .add("--create")
+              .add("--file", file)
+              // "base" classes
+              .add("-C", javaBase)
+              .add(".");
+      // "base" + 1 .. N files
+      for (var release = base + 1; release <= Runtime.version().feature(); release++) {
+        var javaRelease = source.resolve("java-" + release).resolve(module);
+        if (Files.notExists(javaRelease)) {
+          continue;
+        }
+        jar.add("--release", release);
+        jar.add("-C", javaRelease);
+        jar.add(".");
+      }
+      run.tool("jar", jar.toStringArray());
+    }
+
+    private void jarSources(String module, int base) throws Exception {
+      Files.createDirectories(realm.packagedSources);
+      var file =
+          realm.packagedSources.resolve(
+              module + '-' + configuration.project.version + "-sources.jar");
+      var source = realm.source.resolve(module);
+      var javaBase = source.resolve("java-" + base);
+      var jar =
+          new Args()
+              .add(configuration.debug, "--verbose")
+              .add("--create")
+              .add("--file", file)
+              // "base" classes
+              .add("-C", javaBase)
+              .add(".");
+      // "base" + 1 .. N files
+      for (var release = base + 1; release <= Runtime.version().feature(); release++) {
+        var javaRelease = source.resolve("java-" + release);
+        if (Files.notExists(javaRelease)) {
+          continue;
+        }
+        jar.add("--release", release);
+        jar.add("-C", javaRelease);
+        jar.add(".");
+      }
       run.tool("jar", jar.toStringArray());
     }
   }
