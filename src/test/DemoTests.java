@@ -75,7 +75,7 @@ class DemoTests {
   @Nested
   class JigsawGreetings {
 
-    Path home = Path.of("demo", "jigsaw-quick-start", "greetings");
+    Path home = Path.of("demo", "jigsaw-greetings");
 
     @Test
     void checkModules() {
@@ -90,7 +90,7 @@ class DemoTests {
       assertLinesMatch(
           List.of(
               "__BEGIN__",
-              "Making greetings 1.0.0-SNAPSHOT...",
+              "Making " + home.getFileName() + " 1.0.0-SNAPSHOT...",
               ">> BUILD >>",
               "__END.__",
               "Build successful after \\d+ ms\\."),
@@ -103,7 +103,7 @@ class DemoTests {
   @Nested
   class JigsawGreetingsWorldWithMainAndTest {
 
-    Path home = Path.of("demo", "jigsaw-quick-start", "greetings-world-with-main-and-test");
+    Path home = Path.of("demo", "jigsaw-world");
 
     @Test
     void checkModules() {
@@ -158,7 +158,7 @@ class DemoTests {
       assertLinesMatch(
           List.of(
               "__BEGIN__",
-              "Making greetings-world-with-main-and-test 1.0.0-SNAPSHOT...",
+              "Making " + home.getFileName() + " 1.0.0-SNAPSHOT...",
               "Make.java " + Make.VERSION,
               ">> BUILD >>",
               "[         4 tests successful      ]",
