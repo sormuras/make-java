@@ -701,13 +701,7 @@ class Make implements ToolProvider {
       var compiledModules = realm.target.resolve("compiled/modules");
       var modularJar =
           realm.packagedModules.resolve(module + '-' + configuration.project.version + ".jar");
-      var jar =
-          newJarArgs(modularJar)
-              .add("--warn-if-resolved", "deprecated")
-              .add("--warn-if-resolved", "deprecated-for-removal")
-              .add("--warn-if-resolved", "incubating")
-              .add("-C", compiledModules.resolve(module))
-              .add(".");
+      var jar = newJarArgs(modularJar).add("-C", compiledModules.resolve(module)).add(".");
       Files.createDirectories(realm.packagedModules);
       run.tool("jar", jar.toStringArray());
     }
