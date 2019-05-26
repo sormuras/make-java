@@ -524,6 +524,11 @@ class Make implements ToolProvider {
       this.run = run;
     }
 
+    /** Build given modules and return list of modules actually built. */
+    List<String> build(List<String> modules, boolean compileOnly) {
+      return List.of();
+    }
+
     Args newJavacArgs(Path destination) {
       return new Args()
           .add(false, "-verbose") // that's really(!) verbose...
@@ -640,7 +645,7 @@ class Make implements ToolProvider {
       this.realm = realm;
     }
 
-    /** Build given modules and return list of modules actually built. */
+    @Override
     List<String> build(List<String> modules, boolean compileOnly) {
       run.log(DEBUG, "Building %d Jigsaw module(s): %s", modules.size(), modules);
       compile(modules);
