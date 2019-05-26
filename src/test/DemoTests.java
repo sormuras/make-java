@@ -172,8 +172,8 @@ class DemoTests {
       assertLinesMatch(
           List.of(
               "warning: using incubating module(s): com.greetings",
-              ">> 2x 'warning: requires directive for an automatic module' >>",
-              "3 warnings"),
+              ">> 4x 'warning: requires directive for an automatic module' >>",
+              "5 warnings"), // down to 3 after upgrading to Jupiter 5.5-RC1
           run.errorLines());
     }
   }
