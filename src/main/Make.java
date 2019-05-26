@@ -815,6 +815,21 @@ class Make implements ToolProvider {
       return paths;
     }
 
+    /** Find lowest Java feature number. */
+    static int findBaseJavaFeatureNumber(List<String> strings) {
+      int base = Integer.MAX_VALUE;
+      for (var string : strings) {
+        var candidate = Integer.valueOf(string.substring("java-".length()));
+        if (candidate < base) {
+          base = candidate;
+        }
+      }
+      if (base == Integer.MAX_VALUE) {
+        throw new IllegalArgumentException("No base Java feature number found: " + strings);
+      }
+      return base;
+    }
+
     /** Return patch map using two collections of paths. */
     static Map<String, Set<Path>> findPatchMap(Collection<Path> bases, Collection<Path> patches) {
       var map = new TreeMap<String, Set<Path>>();

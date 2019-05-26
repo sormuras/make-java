@@ -25,21 +25,6 @@ class UtilTests {
   }
 
   private int base(String... strings) {
-    return findBaseJavaFeatureNumber(List.of(strings));
-  }
-
-  /** Find lowest Java feature number. */
-  static int findBaseJavaFeatureNumber(List<String> strings) {
-    int base = Integer.MAX_VALUE;
-    for (var string : strings) {
-      var candidate = Integer.valueOf(string.substring("java-".length()));
-      if (candidate < base) {
-        base = candidate;
-      }
-    }
-    if (base == Integer.MAX_VALUE) {
-      throw new IllegalArgumentException("No base Java feature number found: " + strings);
-    }
-    return base;
+    return Make.Util.findBaseJavaFeatureNumber(List.of(strings));
   }
 }
