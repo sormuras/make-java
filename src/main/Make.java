@@ -256,14 +256,6 @@ class Make implements ToolProvider {
       throw new Error("ConsoleLauncher.execute(...) failed: " + t, t);
     } finally {
       currentThread.setContextClassLoader(currentContextLoader);
-      while (loader instanceof URLClassLoader) {
-        try {
-          ((AutoCloseable) loader).close();
-        } catch (Exception e) {
-          // ignore
-        }
-        loader = loader.getParent();
-      }
     }
   }
 
@@ -618,7 +610,19 @@ class Make implements ToolProvider {
             var name = string.replace(File.separatorChar, '.').substring(0, string.length() - 6);
             junit.add("--select-class", name);
           });
-      launchJUnitPlatformConsole(run, newJUnitPlatformClassLoader(), junit);
+      var loader = newJUnitPlatformClassLoader();
+      try {
+        launchJUnitPlatformConsole(run, loader, junit);
+      } finally {
+        while (loader instanceof URLClassLoader) {
+          try {
+            ((URLClassLoader) loader).close();
+          } catch (Exception e) {
+            // ignore
+          }
+          loader = loader.getParent();
+        }
+      }
     }
 
     private ClassLoader newJUnitPlatformClassLoader() {
