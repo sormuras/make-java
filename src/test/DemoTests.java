@@ -120,6 +120,8 @@ class DemoTests {
           List.of(
               "main",
               "main/compiled",
+              "main/compiled/javadoc",
+              ">> JAVADOC >>",
               "main/compiled/modules",
               "main/compiled/modules/com.greetings",
               "main/compiled/modules/com.greetings/com",
@@ -131,6 +133,8 @@ class DemoTests {
               "main/compiled/modules/org.astro/org",
               "main/compiled/modules/org.astro/org/astro",
               "main/compiled/modules/org.astro/org/astro/World.class",
+              "main/javadoc",
+              "main/javadoc/jigsaw-world-1.0.0-SNAPSHOT-javadoc.jar",
               "main/modules",
               "main/modules/com.greetings-1.0.0-SNAPSHOT.jar",
               "main/modules/org.astro-1.0.0-SNAPSHOT.jar",

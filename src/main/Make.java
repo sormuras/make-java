@@ -153,7 +153,7 @@ class Make implements ToolProvider {
     run.log(DEBUG, "Assembled assets for %s realm.", realm.name);
   }
 
-  private void build(Run run) {
+  private void build(Run run) throws Exception {
     run.log(DEBUG, "__BUILD__");
     if (main.modules.size() + test.modules.size() == 0) {
       run.log(INFO, "No modules found. Trying to build using `--class-path`...");
@@ -162,6 +162,7 @@ class Make implements ToolProvider {
     }
     if (!main.modules.isEmpty()) {
       build(run, main, false);
+      document(run, main);
     }
     if (!test.modules.isEmpty()) {
       build(run, test, true);
@@ -257,6 +258,44 @@ class Make implements ToolProvider {
     } finally {
       currentThread.setContextClassLoader(currentContextLoader);
     }
+  }
+
+  /** Generate documentation for given modular realm. */
+  private void document(Run run, Realm realm) throws Exception {
+    // TODO javadoc: error - Destination directory not writable: ${work}/main/compiled/javadoc
+    // var destination = Files.createDirectories(realm.compiledJavadoc);
+    var moduleSourcePath = realm.source.toString();
+    var javaSources = new ArrayList<String>();
+    javaSources.add(moduleSourcePath);
+    for (var release = 7; release <= Runtime.version().feature(); release++) {
+      var separator = File.separator;
+      javaSources.add(moduleSourcePath + separator + "*" + separator + "java-" + release);
+    }
+    var javadoc =
+        new Args()
+            .add(false, "-verbose")
+            .add("-encoding", "UTF-8")
+            .add("-quiet")
+            .add("-windowtitle", configuration.project)
+            .add("-d", realm.compiledJavadoc)
+            .add("--module-source-path", String.join(File.pathSeparator, javaSources))
+            .add("--module", String.join(",", realm.modules));
+    var modulePath = realm.modulePath(configuration.home.resolve("lib"), "compile");
+    if (!modulePath.isEmpty()) {
+      javadoc.add("--module-path", modulePath);
+    }
+    run.tool("javadoc", javadoc.toStringArray());
+    Files.createDirectories(realm.packagedJavadoc);
+    var javadocJar =
+        realm.packagedJavadoc.resolve(configuration.project.jarBaseName + "-javadoc.jar");
+    var jar =
+        new Args()
+            .add(configuration.debug, "--verbose")
+            .add("--create")
+            .add("--file", javadocJar)
+            .add("-C", realm.compiledJavadoc)
+            .add(".");
+    run.tool("jar", jar.toStringArray());
   }
 
   /** Log summary for given realm. */
@@ -642,9 +681,7 @@ class Make implements ToolProvider {
       testPaths.removeIf(path -> Files.notExists(path));
       run.log(DEBUG, "testPaths: %s", testPaths);
 
-      var platformPaths = new ArrayList<Path>();
-      platformPaths.addAll(Util.find(libraries.resolve("test-runtime-platform"), "*.jar"));
-      platformPaths.removeIf(path -> Files.notExists(path));
+      var platformPaths = Util.find(libraries.resolve("test-runtime-platform"), "*.jar");
       run.log(DEBUG, "platformPaths: %s", platformPaths);
 
       var parent = ClassLoader.getPlatformClassLoader();
