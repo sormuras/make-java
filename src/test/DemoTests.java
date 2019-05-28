@@ -101,7 +101,7 @@ class DemoTests {
   }
 
   @Nested
-  class JigsawGreetingsWorldWithMainAndTest {
+  class JigsawWorld {
 
     Path home = Path.of("demo", "jigsaw-world");
 
