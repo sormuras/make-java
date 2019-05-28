@@ -442,6 +442,10 @@ class Make implements ToolProvider {
     void tool(String name, String... args) {
       log(DEBUG, "Running tool '%s' with: %s", name, List.of(args));
       var tool = ToolProvider.findFirst(name).orElseThrow();
+      if (Boolean.getBoolean("dump-tool-command".substring(1))) {
+        Util.listCommand(name, args).forEach(line -> log(INFO, "%s", line));
+        log(INFO, "");
+      }
       var code = tool.run(out, err, args);
       if (code == 0) {
         log(DEBUG, "Tool '%s' successfully run.", name);
@@ -965,6 +969,33 @@ class Make implements ToolProvider {
     /** No instance permitted. */
     private Util() {
       throw new Error();
+    }
+
+    static List<String> listCommand(String command, String... args) {
+      if (args.length == 0) {
+        return List.of(command);
+      }
+      if (args.length == 1) {
+        return List.of(command + ' ' + args[0]);
+      }
+      var list = new ArrayList<String>();
+      list.add(String.format("%s with %d arguments", command, args.length));
+      boolean simple = true;
+      for (var arg : args) {
+        var indent = simple ? 8 : arg.startsWith("-") ? 8 : 10;
+        simple = !arg.startsWith("-");
+        if (arg.length() > 50) {
+          if (arg.contains(File.pathSeparator)) {
+            for (String path : arg.split(File.pathSeparator)) {
+              list.add(String.format("%-10s%s", "", path));
+            }
+            continue;
+          }
+          arg = arg.substring(0, 46) + "[...]";
+        }
+        list.add(String.format("%-" + indent + "s%s", "", arg));
+      }
+      return list;
     }
 
     /** Return list of child directories directly present in {@code root} path. */
