@@ -206,7 +206,8 @@ class Make implements ToolProvider {
     var rootModules = new ArrayList<String>();
     rootModules.add("org.junit.platform.console");
     rootModules.add("org.junit.jupiter.engine");
-    // TODO Add "all-module-path" entries to resolve all engines?
+    // Add "all-module-path" entries to resolve all engines?
+    // https://github.com/sormuras/make-java/issues/7
     rootModules.addAll(realm.modules);
     var boot = ModuleLayer.boot();
     var configuration = boot.configuration().resolve(finder, ModuleFinder.of(), rootModules);
@@ -262,8 +263,9 @@ class Make implements ToolProvider {
 
   /** Generate documentation for given modular realm. */
   private void document(Run run, Realm realm) throws Exception {
-    // TODO javadoc: error - Destination directory not writable: ${work}/main/compiled/javadoc
+    // javadoc: error - Destination directory not writable: ${work}/main/compiled/javadoc
     // var destination = Files.createDirectories(realm.compiledJavadoc);
+    // https://github.com/sormuras/make-java/issues/8
     var moduleSourcePath = realm.source.toString();
     var javaSources = new ArrayList<String>();
     javaSources.add(moduleSourcePath);
@@ -602,7 +604,7 @@ class Make implements ToolProvider {
         compile(main);
         jarClasses(main);
         jarSources(main);
-        // TODO document(main);
+        // document(main); // https://github.com/sormuras/make-java/issues/8
       }
       if (Files.exists(test.source)) {
         compile(test);
@@ -715,7 +717,8 @@ class Make implements ToolProvider {
         for (var module : modules) {
           jarModule(module);
           jarSources(module);
-          // TODO Create javadoc and "-javadoc.jar" for this module
+          // Create javadoc and "-javadoc.jar" for this module
+          // https://github.com/sormuras/make-java/issues/8
         }
       } catch (Exception e) {
         throw new Error("Building modules failed!", e);
@@ -816,7 +819,8 @@ class Make implements ToolProvider {
       try {
         jarModule(module, base);
         jarSources(module, base);
-        // TODO Create "-javadoc.jar" for this multi-release module
+        // Create "-javadoc.jar" for this multi-release module
+        // https://github.com/sormuras/make-java/issues/8
       } catch (Exception e) {
         throw new Error("Building module " + module + " failed!", e);
       }
