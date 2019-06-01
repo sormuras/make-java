@@ -118,7 +118,7 @@ class Make implements ToolProvider {
   /** Assemble assets and check preconditions. */
   private void assemble(Run run, Realm realm) throws Exception {
     run.log(DEBUG, "Assembling assets for %s realm...", realm.name);
-    var libraries = configuration.home.resolve("lib");
+    var libraries = realm.libraries;
     var candidates =
         List.of(
             libraries.resolve(realm.name),
@@ -198,7 +198,7 @@ class Make implements ToolProvider {
 
     var modulePath = new ArrayList<Path>();
     modulePath.add(realm.compiledModules); // grab test modules
-    modulePath.addAll(realm.modulePath(configuration.home.resolve("lib"), "runtime"));
+    modulePath.addAll(realm.modulePath("runtime"));
     var finder = ModuleFinder.of(modulePath.toArray(Path[]::new));
     for (var reference : finder.findAll()) {
       run.log(DEBUG, "  -> %s", reference);
@@ -282,7 +282,7 @@ class Make implements ToolProvider {
             .add("-d", realm.compiledJavadoc)
             .add("--module-source-path", String.join(File.pathSeparator, javaSources))
             .add("--module", String.join(",", realm.modules));
-    var modulePath = realm.modulePath(configuration.home.resolve("lib"), "compile");
+    var modulePath = realm.modulePath("compile");
     if (!modulePath.isEmpty()) {
       javadoc.add("--module-path", modulePath);
     }
@@ -513,6 +513,7 @@ class Make implements ToolProvider {
     final Path source;
     final Path target;
     final List<String> modules;
+    final Path libraries;
 
     final Path classicalClasses;
     final Path classicalJar;
@@ -536,6 +537,7 @@ class Make implements ToolProvider {
           Util.find(source, "module-info.java").size() > 0
               ? Util.listDirectoryNames(source)
               : List.of();
+      this.libraries = configuration.home.resolve("lib");
 
       this.classicalClasses = target.resolve("classes");
       this.classicalJar = target.resolve(configuration.project.jarBaseName + ".jar");
@@ -552,7 +554,7 @@ class Make implements ToolProvider {
     }
 
     /** Create module path. */
-    List<Path> modulePath(Path libraries, String phase) {
+    List<Path> modulePath(String phase) {
       var result = new ArrayList<Path>();
       var candidates = List.of(name, name + "-" + phase + "-only");
       for (var candidate : candidates) {
@@ -560,7 +562,7 @@ class Make implements ToolProvider {
       }
       for (var required : requiredRealms) {
         result.add(required.packagedModules);
-        result.addAll(required.modulePath(libraries, phase));
+        result.addAll(required.modulePath(phase));
       }
       result.removeIf(Files::notExists);
       return result;
@@ -623,7 +625,7 @@ class Make implements ToolProvider {
       if (realm.name.equals("test")) {
         classPath.add(main.classicalJar);
       }
-      var libraries = configuration.home.resolve("lib");
+      var libraries = realm.libraries;
       classPath.addAll(Util.find(libraries.resolve(realm.name), "*.jar"));
       classPath.addAll(Util.find(libraries.resolve(realm.name + "-compile-only"), "*.jar"));
       var javac = newJavacArgs(realm.classicalClasses);
@@ -671,7 +673,7 @@ class Make implements ToolProvider {
     }
 
     private ClassLoader newJUnitPlatformClassLoader() {
-      var libraries = configuration.home.resolve("lib");
+      var libraries = test.libraries;
 
       var mainPaths = new ArrayList<Path>();
       mainPaths.add(main.classicalJar);
@@ -733,15 +735,14 @@ class Make implements ToolProvider {
               .add("--module-source-path", realm.source)
               .add("--module", String.join(",", modules));
 
-      var libraries = configuration.home.resolve("lib");
       var modulePath = new ArrayList<Path>();
       if (realm.name.equals("test")) {
         modulePath.add(main.packagedModules);
-        modulePath.add(libraries.resolve("main"));
+        modulePath.add(realm.libraries.resolve("main"));
       }
       modulePath.add(realm.packagedModules); // modules from previous builders
-      modulePath.add(libraries.resolve(realm.name));
-      modulePath.add(libraries.resolve(realm.name + "-compile-only"));
+      modulePath.add(realm.libraries.resolve(realm.name));
+      modulePath.add(realm.libraries.resolve(realm.name + "-compile-only"));
       modulePath.removeIf(path -> Files.notExists(path));
       if (!modulePath.isEmpty()) {
         javac.add("--module-path", modulePath);
@@ -848,7 +849,7 @@ class Make implements ToolProvider {
       } else {
         javac.add("-d", destination);
         javac.add("--module-version", configuration.project.version);
-        javac.add("--module-path", realm.modulePath(configuration.home.resolve("lib"), "compile"));
+        javac.add("--module-path", realm.modulePath("compile"));
         var pathR = realm.source + File.separator + "*" + File.separator + javaR;
         var sources = List.of(pathR, "" + realm.source);
         javac.add("--module-source-path", String.join(File.pathSeparator, sources));
