@@ -118,13 +118,12 @@ class Make implements ToolProvider {
   /** Assemble assets and check preconditions. */
   private void assemble(Run run, Realm realm) throws Exception {
     run.log(DEBUG, "Assembling assets for %s realm...", realm.name);
-    var libraries = realm.libraries;
     var candidates =
         List.of(
-            libraries.resolve(realm.name),
-            libraries.resolve(realm.name + "-compile-only"),
-            libraries.resolve(realm.name + "-runtime-only"),
-            libraries.resolve(realm.name + "-runtime-platform"));
+            configuration.libraries.resolve(realm.name),
+            configuration.libraries.resolve(realm.name + "-compile-only"),
+            configuration.libraries.resolve(realm.name + "-runtime-only"),
+            configuration.libraries.resolve(realm.name + "-runtime-platform"));
     var downloaded = new ArrayList<Path>();
     for (var candidate : candidates) {
       if (!Files.isDirectory(candidate)) {
@@ -392,11 +391,13 @@ class Make implements ToolProvider {
     final boolean doLaunchJUnitPlatform;
     final Path home;
     final Path work;
+    final Path libraries;
     final Project project;
     final System.Logger.Level threshold;
 
     Configuration(Path home, Properties properties) {
       this.home = USER_PATH.getRoot().equals(home.getRoot()) ? USER_PATH.relativize(home) : home;
+      this.libraries = this.home.resolve("lib");
 
       var configurator = new Configurator(properties);
       this.debug = configurator.is("debug", "false");
@@ -507,13 +508,13 @@ class Make implements ToolProvider {
 
   /** Modular source set. */
   static class Realm {
+    final Configuration configuration;
     final String name;
     final List<Realm> requiredRealms;
 
     final Path source;
     final Path target;
     final List<String> modules;
-    final Path libraries;
 
     final Path classicalClasses;
     final Path classicalJar;
@@ -528,6 +529,7 @@ class Make implements ToolProvider {
     final Path packagedJavadoc;
 
     Realm(Configuration configuration, String name, Realm... requiredRealms) {
+      this.configuration = configuration;
       this.name = name;
       this.requiredRealms = List.of(requiredRealms);
 
@@ -537,7 +539,6 @@ class Make implements ToolProvider {
           Util.find(source, "module-info.java").size() > 0
               ? Util.listDirectoryNames(source)
               : List.of();
-      this.libraries = configuration.home.resolve("lib");
 
       this.classicalClasses = target.resolve("classes");
       this.classicalJar = target.resolve(configuration.project.jarBaseName + ".jar");
@@ -558,7 +559,7 @@ class Make implements ToolProvider {
       var result = new ArrayList<Path>();
       var candidates = List.of(name, name + "-" + phase + "-only");
       for (var candidate : candidates) {
-        result.add(libraries.resolve(candidate));
+        result.add(configuration.libraries.resolve(candidate));
       }
       for (var required : requiredRealms) {
         result.add(required.packagedModules);
@@ -625,7 +626,7 @@ class Make implements ToolProvider {
       if (realm.name.equals("test")) {
         classPath.add(main.classicalJar);
       }
-      var libraries = realm.libraries;
+      var libraries = configuration.libraries;
       classPath.addAll(Util.find(libraries.resolve(realm.name), "*.jar"));
       classPath.addAll(Util.find(libraries.resolve(realm.name + "-compile-only"), "*.jar"));
       var javac = newJavacArgs(realm.classicalClasses);
@@ -673,7 +674,7 @@ class Make implements ToolProvider {
     }
 
     private ClassLoader newJUnitPlatformClassLoader() {
-      var libraries = test.libraries;
+      var libraries = configuration.libraries;
 
       var mainPaths = new ArrayList<Path>();
       mainPaths.add(main.classicalJar);
@@ -738,11 +739,11 @@ class Make implements ToolProvider {
       var modulePath = new ArrayList<Path>();
       if (realm.name.equals("test")) {
         modulePath.add(main.packagedModules);
-        modulePath.add(realm.libraries.resolve("main"));
+        modulePath.add(configuration.libraries.resolve("main"));
       }
       modulePath.add(realm.packagedModules); // modules from previous builders
-      modulePath.add(realm.libraries.resolve(realm.name));
-      modulePath.add(realm.libraries.resolve(realm.name + "-compile-only"));
+      modulePath.add(configuration.libraries.resolve(realm.name));
+      modulePath.add(configuration.libraries.resolve(realm.name + "-compile-only"));
       modulePath.removeIf(path -> Files.notExists(path));
       if (!modulePath.isEmpty()) {
         javac.add("--module-path", modulePath);
