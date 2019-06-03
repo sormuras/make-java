@@ -960,7 +960,8 @@ class Make implements ToolProvider {
         }
         var contentDisposition = connection.getHeaderField("Content-Disposition");
         if (contentDisposition != null && contentDisposition.indexOf('=') > 0) {
-          var newTarget = target.resolveSibling(contentDisposition.split("=")[1]);
+          var contentName = contentDisposition.split("=")[1].replaceAll("\"", "");
+          var newTarget = target.resolveSibling(contentName);
           Files.move(target, newTarget);
           target = newTarget;
         }
