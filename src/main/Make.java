@@ -207,7 +207,7 @@ class Make implements ToolProvider {
     for (var reference : finder.findAll()) {
       run.log(DEBUG, "  -> %s", reference);
     }
-    var rootModules = new ArrayList<String>(realm.modules);
+    var rootModules = new ArrayList<>(realm.modules);
     run.log(DEBUG, "Root module(s):");
     for (var module : rootModules) {
       run.log(DEBUG, "  -> %s", module);
