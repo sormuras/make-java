@@ -196,20 +196,24 @@ class Make implements ToolProvider {
             .add("--scan-modules");
 
     var modulePath = new ArrayList<Path>();
-    modulePath.add(realm.compiledModules); // grab test modules
+    modulePath.add(realm.compiledModules); // grab "exploded" test modules
     modulePath.addAll(realm.modulePath("runtime"));
+    run.log(DEBUG, "Module path:");
+    for (var element : modulePath) {
+      run.log(DEBUG, "  -> %s", element);
+    }
     var finder = ModuleFinder.of(modulePath.toArray(Path[]::new));
+    run.log(DEBUG, "Finder finds module(s):");
     for (var reference : finder.findAll()) {
       run.log(DEBUG, "  -> %s", reference);
     }
-    var rootModules = new ArrayList<String>();
-    rootModules.add("org.junit.platform.console");
-    rootModules.add("org.junit.jupiter.engine");
-    // Add "all-module-path" entries to resolve all engines?
-    // https://github.com/sormuras/make-java/issues/7
-    rootModules.addAll(realm.modules);
+    var rootModules = new ArrayList<String>(realm.modules);
+    run.log(DEBUG, "Root module(s):");
+    for (var module : rootModules) {
+      run.log(DEBUG, "  -> %s", module);
+    }
     var boot = ModuleLayer.boot();
-    var configuration = boot.configuration().resolve(finder, ModuleFinder.of(), rootModules);
+    var configuration = boot.configuration().resolveAndBind(finder, ModuleFinder.of(), rootModules);
     var parentLoader = ClassLoader.getPlatformClassLoader();
     var controller = defineModulesWithOneLoader(configuration, List.of(boot), parentLoader);
     var junitConsoleLayer = controller.layer();
@@ -439,6 +443,7 @@ class Make implements ToolProvider {
       var consumer = level.getSeverity() < WARNING.getSeverity() ? out : err;
       var message = String.format(format, args);
       consumer.println(message);
+      consumer.flush();
     }
 
     /** Run provided tool. */
