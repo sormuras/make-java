@@ -171,11 +171,7 @@ class DemoTests {
               "Build successful after \\d+ ms\\."),
           run.normalLines());
 
-      assertLinesMatch(
-          List.of(
-              ">> 4x 'warning: requires directive for an automatic module' >>",
-              "4 warnings"), // down to 1 after upgrading to Jupiter 5.5-RC1
-          run.errorLines());
+      assertLinesMatch(List.of(), run.errorLines());
     }
   }
 }

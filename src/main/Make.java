@@ -208,6 +208,7 @@ class Make implements ToolProvider {
       run.log(DEBUG, "  -> %s", reference);
     }
     var rootModules = new ArrayList<>(realm.modules);
+    rootModules.add("org.junit.platform.console");
     run.log(DEBUG, "Root module(s):");
     for (var module : rootModules) {
       run.log(DEBUG, "  -> %s", module);
