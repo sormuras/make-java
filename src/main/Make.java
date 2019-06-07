@@ -316,8 +316,8 @@ class Make implements ToolProvider {
         jdeps.add(realm.classicalJar);
       } else {
         var modulePath = new ArrayList<Path>();
-        modulePath.add(realm.target.resolve("modules"));
-        // modulePath.addAll(realm.modulePaths.get("runtime"));
+        modulePath.add(realm.packagedModules);
+        modulePath.addAll(realm.modulePath("runtime"));
         jdeps
             .add("--module-path", modulePath)
             .add("--add-modules", String.join(",", realm.modules))
