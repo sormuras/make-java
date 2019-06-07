@@ -851,7 +851,7 @@ class Make implements ToolProvider {
               .add("--release", release);
       if (release < 9) {
         javac.add("-d", destination.resolve(module));
-        // TODO "-cp" ...
+        javac.add("--class-path", Util.find(configuration.libraries.resolve(realm.name), "*.jar"));
         javac.addEach(Util.find(source, "*.java"));
       } else {
         javac.add("-d", destination);
