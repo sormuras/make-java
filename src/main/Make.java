@@ -309,6 +309,26 @@ class Make implements ToolProvider {
     run.log(INFO, "__SUMMARY__");
     var jars = Util.find(realm.target, "*.jar");
     jars.forEach(jar -> run.log(INFO, "  -> %,9d %s", Util.size(jar), jar));
+    var project = configuration.project;
+    if (project.deployRepositoryId != null && project.deployUrl != null) {
+      var javadocJar =
+          realm.packagedJavadoc.resolve(project.jarBaseName + "-javadoc.jar");
+      for (var module : realm.modules) {
+        var moduleDashVersion = module + '-' + project.version;
+        var fileJar = realm.packagedModules.resolve(moduleDashVersion + ".jar");
+        var sourcesJar = realm.packagedSources.resolve(moduleDashVersion + "-sources.jar");
+        var args =
+            new Args()
+                .add("org.apache.maven.plugins:maven-deploy-plugin:3.0.0-M1:deploy-file")
+                .add("-DrepositoryId=" + project.deployRepositoryId)
+                .add("-Durl=" + project.deployUrl)
+                .add("-DpomFile=" + Path.of("src", "poms", module, "pom.xml"))
+                .add("-Dfile=" + fileJar)
+                .add("-Dsources=" + sourcesJar)
+                .add("-Djavadoc=" + javadocJar);
+        run.log(INFO, "mvn %s", String.join(" ", args.list));
+      }
+    }
     if (configuration.debug) {
       var jdeps = new Make.Args().add("-summary");
       if (realm.modules.isEmpty()) {
@@ -331,11 +351,15 @@ class Make implements ToolProvider {
   static class Project {
     final String name;
     final String version;
+    final String deployRepositoryId;
+    final String deployUrl;
     final String jarBaseName;
 
-    Project(String name, String version) {
+    Project(String name, String version, String deployRepositoryId, String deployUrl) {
       this.name = name;
       this.version = version;
+      this.deployRepositoryId = deployRepositoryId;
+      this.deployUrl = deployUrl;
       this.jarBaseName = name.toLowerCase().replace('.', '-') + '-' + version;
     }
 
@@ -413,7 +437,10 @@ class Make implements ToolProvider {
       this.project =
           new Project(
               configurator.get("name", home.getFileName().toString()),
-              configurator.get("version", "1.0.0-SNAPSHOT"));
+              configurator.get("version", "1.0.0-SNAPSHOT"),
+              configurator.get("deploy.repository", null),
+              configurator.get("deploy.url", null)
+              );
       this.threshold = configurator.threshold();
     }
   }
