@@ -892,7 +892,14 @@ class Make implements ToolProvider {
         if (Files.notExists(javaRelease)) {
           continue;
         }
-        jar.add("--release", release);
+        // store a solitary module descriptor directly in JARs root
+        var fileNames = new ArrayList<String>();
+        try (var stream = Files.newDirectoryStream(javaRelease, "*")) {
+          stream.forEach(path -> fileNames.add(path.getFileName().toString()));
+        }
+        if (!(fileNames.size() == 1 && fileNames.get(0).equals("module-info.class"))) {
+          jar.add("--release", release);
+        }
         jar.add("-C", javaRelease);
         jar.add(".");
       }
