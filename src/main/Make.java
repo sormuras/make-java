@@ -849,9 +849,15 @@ class Make implements ToolProvider {
               .add("-encoding", "UTF-8")
               .add("-Xlint")
               .add("--release", release);
-      if (release < 9) {
+      var compiledBase = realm.compiledMulti.resolve("java-" + base).resolve(module);
+      if (Files.notExists(source.resolve("module-info.java"))) {
         javac.add("-d", destination.resolve(module));
-        javac.add("--class-path", Util.find(configuration.libraries.resolve(realm.name), "*.jar"));
+        var classPath = new ArrayList<Path>();
+        if (release > base) {
+          classPath.add(compiledBase);
+        }
+        classPath.addAll(Util.find(configuration.libraries.resolve(realm.name), "*.jar"));
+        javac.add("--class-path", classPath);
         javac.addEach(Util.find(source, "*.java"));
       } else {
         javac.add("-d", destination);
@@ -860,9 +866,7 @@ class Make implements ToolProvider {
         var pathR = realm.source + File.separator + "*" + File.separator + javaR;
         var sources = List.of(pathR, "" + realm.source);
         javac.add("--module-source-path", String.join(File.pathSeparator, sources));
-        javac.add(
-            "--patch-module",
-            module + '=' + realm.compiledMulti.resolve("java-" + base).resolve(module));
+        javac.add("--patch-module", module + '=' + compiledBase);
         javac.add("--module", module);
       }
       run.tool("javac", javac.toStringArray());
