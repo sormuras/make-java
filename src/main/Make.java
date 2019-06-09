@@ -798,6 +798,12 @@ class Make implements ToolProvider {
       var modularJar =
           realm.packagedModules.resolve(module + '-' + configuration.project.version + ".jar");
       var jar = newJarArgs(modularJar).add("-C", compiledModules.resolve(module)).add(".");
+      // resources
+      var resources =
+          configuration.home.resolve("src").resolve(realm.name + "-resources").resolve(module);
+      if (Files.isDirectory(resources)) {
+        jar.add("-C", resources).add(".");
+      }
       Files.createDirectories(realm.packagedModules);
       run.tool("jar", jar.toStringArray());
     }
@@ -905,14 +911,13 @@ class Make implements ToolProvider {
           realm.packagedModules.resolve(module + '-' + configuration.project.version + ".jar");
       var source = realm.compiledMulti;
       var javaBase = source.resolve("java-" + base).resolve(module);
-      var jar =
-          new Args()
-              .add(configuration.debug, "--verbose")
-              .add("--create")
-              .add("--file", file)
-              // "base" classes
-              .add("-C", javaBase)
-              .add(".");
+      var jar = newJarArgs(file).add("-C", javaBase).add(".");
+      // resources
+      var resources =
+          configuration.home.resolve("src").resolve(realm.name + "-resources").resolve(module);
+      if (Files.isDirectory(resources)) {
+        jar.add("-C", resources).add(".");
+      }
       // "base" + 1 .. N files
       for (var release = base + 1; release <= Runtime.version().feature(); release++) {
         var javaRelease = source.resolve("java-" + release).resolve(module);
