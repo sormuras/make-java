@@ -321,7 +321,7 @@ class Make implements ToolProvider {
                 .add("org.apache.maven.plugins:maven-deploy-plugin:3.0.0-M1:deploy-file")
                 .add("-DrepositoryId=" + project.deployRepositoryId)
                 .add("-Durl=" + project.deployUrl)
-                .add("-DpomFile=" + Path.of("src", "poms", module, "pom.xml"))
+                .add("-DpomFile=" + Path.of("src", realm.name + "-deploy", module, "pom.xml"))
                 .add("-Dfile=" + fileJar)
                 .add("-Dsources=" + sourcesJar)
                 .add("-Djavadoc=" + javadocJar);
