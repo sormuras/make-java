@@ -195,9 +195,7 @@ class Make implements ToolProvider {
             .add("--reports-dir", realm.target.resolve("junit-reports"))
             .add("--scan-modules");
 
-    var modulePath = new ArrayList<Path>();
-    modulePath.add(realm.compiledModules); // grab "exploded" test modules
-    modulePath.addAll(realm.modulePath("runtime"));
+    var modulePath = realm.modulePath("runtime", realm.compiledModules);
     run.log(DEBUG, "Module path:");
     for (var element : modulePath) {
       run.log(DEBUG, "  -> %s", element);
@@ -334,11 +332,8 @@ class Make implements ToolProvider {
         // var classPath = new ArrayList<Path>(); // realm "runtime"
         jdeps.add(realm.classicalJar);
       } else {
-        var modulePath = new ArrayList<Path>();
-        modulePath.add(realm.packagedModules);
-        modulePath.addAll(realm.modulePath("runtime"));
         jdeps
-            .add("--module-path", modulePath)
+            .add("--module-path", realm.modulePath("runtime", realm.packagedModules))
             .add("--add-modules", String.join(",", realm.modules))
             .add("--multi-release", "base");
       }
@@ -586,7 +581,7 @@ class Make implements ToolProvider {
     }
 
     /** Create module path. */
-    List<Path> modulePath(String phase) {
+    List<Path> modulePath(String phase, Path... additionalPaths) {
       var result = new ArrayList<Path>();
       var candidates = List.of(name, name + "-" + phase + "-only");
       for (var candidate : candidates) {
@@ -596,6 +591,7 @@ class Make implements ToolProvider {
         result.add(required.packagedModules);
         result.addAll(required.modulePath(phase));
       }
+      result.addAll(List.of(additionalPaths));
       result.removeIf(Files::notExists);
       return result;
     }
