@@ -311,8 +311,7 @@ class Make implements ToolProvider {
     jars.forEach(jar -> run.log(INFO, "  -> %,9d %s", Util.size(jar), jar));
     var project = configuration.project;
     if (project.deployRepositoryId != null && project.deployUrl != null) {
-      var javadocJar =
-          realm.packagedJavadoc.resolve(project.jarBaseName + "-javadoc.jar");
+      var javadocJar = realm.packagedJavadoc.resolve(project.jarBaseName + "-javadoc.jar");
       for (var module : realm.modules) {
         var moduleDashVersion = module + '-' + project.version;
         var fileJar = realm.packagedModules.resolve(moduleDashVersion + ".jar");
@@ -439,8 +438,7 @@ class Make implements ToolProvider {
               configurator.get("name", home.getFileName().toString()),
               configurator.get("version", "1.0.0-SNAPSHOT"),
               configurator.get("deploy.repository", null),
-              configurator.get("deploy.url", null)
-              );
+              configurator.get("deploy.url", null));
       this.threshold = configurator.threshold();
     }
   }
@@ -945,14 +943,7 @@ class Make implements ToolProvider {
               module + '-' + configuration.project.version + "-sources.jar");
       var source = realm.source.resolve(module);
       var javaBase = source.resolve("java-" + base);
-      var jar =
-          new Args()
-              .add(configuration.debug, "--verbose")
-              .add("--create")
-              .add("--file", file)
-              // "base" classes
-              .add("-C", javaBase)
-              .add(".");
+      var jar = newJarArgs(file).add("-C", javaBase).add(".");
       // "base" + 1 .. N files
       for (var release = base + 1; release <= Runtime.version().feature(); release++) {
         var javaRelease = source.resolve("java-" + release);
