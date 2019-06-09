@@ -581,8 +581,8 @@ class Make implements ToolProvider {
     }
 
     /** Create module path. */
-    List<Path> modulePath(String phase, Path... additionalPaths) {
-      var result = new ArrayList<Path>();
+    List<Path> modulePath(String phase, Path... initialPaths) {
+      var result = new ArrayList<>(List.of(initialPaths));
       var candidates = List.of(name, name + "-" + phase + "-only");
       for (var candidate : candidates) {
         result.add(configuration.libraries.resolve(candidate));
@@ -591,7 +591,6 @@ class Make implements ToolProvider {
         result.add(required.packagedModules);
         result.addAll(required.modulePath(phase));
       }
-      result.addAll(List.of(additionalPaths));
       result.removeIf(Files::notExists);
       return result;
     }
