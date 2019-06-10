@@ -1026,14 +1026,14 @@ class Make implements ToolProvider {
       for (var arg : args) {
         var indent = simple ? 8 : arg.startsWith("-") ? 8 : 10;
         simple = !arg.startsWith("-");
-        if (arg.length() > 50) {
+        if (arg.length() > 99) {
           if (arg.contains(File.pathSeparator)) {
             for (String path : arg.split(File.pathSeparator)) {
               list.add(String.format("%-10s%s", "", path));
             }
             continue;
           }
-          arg = arg.substring(0, 46) + "[...]";
+          // arg = arg.substring(0, 96) + "[...]";
         }
         list.add(String.format("%-" + indent + "s%s", "", arg));
       }
