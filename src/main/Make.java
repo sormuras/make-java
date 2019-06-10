@@ -193,15 +193,18 @@ class Make implements ToolProvider {
             .add("--fail-if-no-tests")
             .add("--reports-dir", realm.target.resolve("junit-reports"))
             .add("--scan-modules");
-    junit(run, realm, junit);
-    if (Util.isWindows()) {
-      System.gc();
-      Util.delay(1234);
+    try {
+      launchJUnitPlatformConsole(run, realm, junit);
+    } finally {
+      if (Util.isWindows()) {
+        System.gc();
+        Util.delay(1234);
+      }
     }
   }
 
   /** Launch JUnit Platform for given modular realm. */
-  private void junit(Run run, Realm realm, Args junit) {
+  private void launchJUnitPlatformConsole(Run run, Realm realm, Args junit) {
     var modulePath = realm.modulePath("runtime", realm.compiledModules);
     run.log(DEBUG, "Module path:");
     for (var element : modulePath) {
