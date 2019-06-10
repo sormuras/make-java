@@ -882,6 +882,7 @@ class Make implements ToolProvider {
         if (release > base) {
           classPath.add(compiledBase);
         }
+        classPath.addAll(Util.find(realm.packagedModules, "*.jar"));
         classPath.addAll(Util.find(configuration.libraries.resolve(realm.name), "*.jar"));
         javac.add("--class-path", classPath);
         javac.addEach(Util.find(source, "*.java"));
