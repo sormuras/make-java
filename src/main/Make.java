@@ -187,14 +187,21 @@ class Make implements ToolProvider {
   }
 
   /** Launch JUnit Platform for given modular realm. */
-  @SuppressWarnings("UnusedAssignment")
   private void junit(Run run, Realm realm) {
     var junit =
         new Args()
             .add("--fail-if-no-tests")
             .add("--reports-dir", realm.target.resolve("junit-reports"))
             .add("--scan-modules");
+    junit(run, realm, junit);
+    if (Util.isWindows()) {
+      System.gc();
+      Util.delay(1234);
+    }
+  }
 
+  /** Launch JUnit Platform for given modular realm. */
+  private void junit(Run run, Realm realm, Args junit) {
     var modulePath = realm.modulePath("runtime", realm.compiledModules);
     run.log(DEBUG, "Module path:");
     for (var element : modulePath) {
@@ -221,18 +228,8 @@ class Make implements ToolProvider {
         "org.junit.platform.console",
         Make.class.getModule());
     var junitConsoleLoader = junitConsoleLayer.findLoader("org.junit.platform.console");
-    launchJUnitPlatformConsole(run, junitConsoleLoader, junit);
-    if (System.getProperty("os.name", "?").toLowerCase(Locale.ENGLISH).contains("win")) {
-      try {
-        controller = null;
-        junitConsoleLayer = null;
-        junitConsoleLoader = null;
-        System.gc();
-        Thread.sleep(1234);
-      } catch (InterruptedException e) {
-        // ignore
-      }
-    }
+    var junitLoader = new URLClassLoader("junit", new URL[0], junitConsoleLoader);
+    launchJUnitPlatformConsole(run, junitLoader, junit);
   }
 
   private void launchJUnitPlatformConsole(Run run, ClassLoader loader, Args junit) {
