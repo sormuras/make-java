@@ -1,4 +1,6 @@
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
@@ -6,6 +8,12 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class UtilTests {
+
+  @Test
+  void delay() {
+    assertDoesNotThrow(() -> Make.Util.delay(0));
+    assertThrows(IllegalArgumentException.class, () -> Make.Util.delay(-1));
+  }
 
   @Test
   void findAllJavaSourceAndArchiveFilePaths() {

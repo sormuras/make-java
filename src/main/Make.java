@@ -1015,6 +1015,18 @@ class Make implements ToolProvider {
       throw new Error();
     }
 
+    static void delay(long millis) {
+      try {
+        Thread.sleep(millis);
+      } catch (InterruptedException e) {
+        // ignore
+      }
+    }
+
+    static boolean isWindows() {
+      return System.getProperty("os.name", "?").toLowerCase(Locale.ENGLISH).contains("win");
+    }
+
     static List<String> listCommand(String command, String... args) {
       if (args.length == 0) {
         return List.of(command);
