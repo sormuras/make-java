@@ -156,7 +156,8 @@ class DemoTests {
               "test/compiled/modules/org.astro/org/astro/World.class",
               "test/compiled/modules/org.astro/org/astro/WorldTests.class",
               "test/junit-reports",
-              "test/junit-reports/TEST-junit-jupiter.xml"),
+              "test/junit-reports/TEST-junit-jupiter.xml",
+              "test/junit-reports/TEST-mainrunner.xml"),
           TestRun.treeWalk(work));
 
       assertLinesMatch(
@@ -165,7 +166,7 @@ class DemoTests {
               "Making " + home.getFileName() + " 1.0.0-SNAPSHOT...",
               "Make.java " + Make.VERSION,
               ">> BUILD >>",
-              "[         4 tests successful      ]",
+              "[         5 tests successful      ]",
               "[         0 tests failed          ]",
               ">> SUMMARY >>",
               "Build successful after \\d+ ms\\."),
