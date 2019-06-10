@@ -318,7 +318,8 @@ class Make implements ToolProvider {
                 .add("org.apache.maven.plugins:maven-deploy-plugin:3.0.0-M1:deploy-file")
                 .add("-DrepositoryId=" + project.deployRepositoryId)
                 .add("-Durl=" + project.deployUrl)
-                .add("-DpomFile=" + rootPom);
+                .add("-DpomFile=" + rootPom)
+                .add("-Dfile=" + rootPom);
         run.log(INFO, "mvn %s", String.join(" ", args.list));
       }
       var javadocJar = realm.packagedJavadoc.resolve(project.jarBaseName + "-javadoc.jar");
