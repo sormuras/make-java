@@ -1,4 +1,9 @@
 /open https://github.com/sormuras/make-java/raw/master/src/main/Make.java
-var make = Make.of(Make.USER_PATH)
-var code = make.run(System.out, System.err)
+var code = 0
+try {
+  Make.main();
+} catch(Throwable throwable) {
+  System.err.println(throwable.getMessage());
+  code = 1;
+}
 /exit code
