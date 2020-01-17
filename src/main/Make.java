@@ -18,7 +18,6 @@
 // default package
 
 import java.lang.module.ModuleDescriptor.Version;
-import java.util.StringJoiner;
 
 /**
  * Modular Java Build Tool.
@@ -54,10 +53,10 @@ class Make {
 
     @Override
     public String toString() {
-      return new StringJoiner(", ", Project.class.getSimpleName() + "[", "]")
-          .add("name='" + name + "'")
-          .add("version=" + version)
-          .toString();
+      return "Project{" +
+             "name='" + name + '\'' +
+             ", version=" + version +
+             '}';
     }
   }
 
