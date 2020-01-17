@@ -1,0 +1,18 @@
+name: ci
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: 'Checkout'
+      uses: actions/checkout@v2
+    - name: 'Set up JDK'
+      uses: actions/setup-java@v1
+      with:
+        java-version: 13
+    - name: 'Print JShell version (triggers creation of user preferences directory)'
+      run: jshell --version
+    - name: 'Build using JShell'
+      run: jshell make-java.jsh
