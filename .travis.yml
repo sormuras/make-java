@@ -1,5 +1,0 @@
-dist: xenial
-language: java
-
-script:
-- jshell --show-version --execution local ./build.jsh
