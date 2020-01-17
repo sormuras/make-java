@@ -1,2 +1,7 @@
 .idea/
+
+*.class
 *.jar
+
+/make-java
+/make-java.bat

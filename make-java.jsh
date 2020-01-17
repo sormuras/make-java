@@ -56,6 +56,31 @@ for (var asset : Set.of(make, build)) {
 }
 
 /*
+ * Generate local launchers.
+ */
+var javac = "javac -d .make-java/classes " + make + " " + build
+var java = "java --show-version -cp .make-java/classes Build"
+println()
+println("Generating local launchers and initial configuration...")
+println("  -> make-java")
+Files.write(Path.of("make-java"), List.of("//usr/bin/env " + javac, "//usr/bin/env " + java + " \"$@\"")).toFile().setExecutable(true)
+println("  -> make-java.bat")
+Files.write(Path.of("make-java.bat"), List.of("@ECHO OFF", javac, java + " %*"))
+
+/*
+ * Print some help and wave goodbye.
+ */
+println()
+println("Bootstrap finished. Use the following command to launch your build program:")
+println("")
+println("    Linux: ./make-java <args...>")
+println("  Windows: make-java <args...>")
+println()
+println()
+println("Have fun! https://github.com/sponsors/sormuras (-:")
+println()
+
+/*
  * Source build tool and build program into this JShell session.
  */
 /open src/.make-java/Make.java
