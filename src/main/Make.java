@@ -17,6 +17,9 @@
 
 // default package
 
+import static java.lang.System.Logger.Level.DEBUG;
+import static java.lang.System.Logger.Level.INFO;
+
 import java.lang.module.ModuleDescriptor.Version;
 
 /**
@@ -24,16 +27,28 @@ import java.lang.module.ModuleDescriptor.Version;
  */
 class Make {
 
+  /** Version string. */
+  public static final String VERSION = "1-ea";
+
+  private static final System.Logger LOGGER = System.getLogger("Make.java");
+
   /**
    * Main entry-point.
    */
   public static void main(String... args) {
+    LOGGER.log(DEBUG, "");
     var project = new Project("project", Version.parse("1-ea"));
     new Make().make(project);
   }
 
   public void make(Project project) {
-    System.out.println(project);
+    LOGGER.log(DEBUG, this);
+    LOGGER.log(INFO, project);
+  }
+
+  @Override
+  public String toString() {
+    return "Make.java " + VERSION;
   }
 
   /*record*/ static class Project {
