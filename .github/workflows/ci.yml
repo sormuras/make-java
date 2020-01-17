@@ -18,3 +18,8 @@ jobs:
       run: jshell make-java.jsh
     - name: 'Build using local launcher'
       run: ./make-java
+    - name: 'Set up JUnit'
+      uses: sormuras/setup-junit@master
+      id: junit
+    - name: 'Launch JUnit'
+      run: java -jar ${{ steps.junit.outputs.standalone-jar }} --help
