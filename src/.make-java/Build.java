@@ -20,47 +20,12 @@
 import java.lang.module.ModuleDescriptor.Version;
 
 /**
- * Modular Java Build Tool.
+ * Build program for this project.
  */
-class Make {
-
-  /**
-   * Main entry-point.
-   */
+class Build {
   public static void main(String... args) {
-    var project = new Project("project", Version.parse("1-ea"));
+    System.out.println("Build.java");
+    var project = new Make.Project("Make.java", Version.parse("1-ea"));
     new Make().make(project);
   }
-
-  public void make(Project project) {
-    System.out.println(project);
-  }
-
-  /*record*/ static class Project {
-
-    final String name;
-    final Version version;
-
-    Project(String name, Version version) {
-      this.name = name;
-      this.version = version;
-    }
-
-    public String name() {
-      return name;
-    }
-
-    public Version version() {
-      return version;
-    }
-
-    @Override
-    public String toString() {
-      return "Project{" +
-             "name='" + name + '\'' +
-             ", version=" + version +
-             '}';
-    }
-  }
-
 }
