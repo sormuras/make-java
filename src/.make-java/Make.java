@@ -17,29 +17,52 @@
 
 // default package
 
-import static java.lang.System.Logger.Level.DEBUG;
-import static java.lang.System.Logger.Level.INFO;
-
+import java.lang.System.Logger.Level;
 import java.lang.module.ModuleDescriptor.Version;
+import java.time.Duration;
+import java.time.Instant;
 
-/**
- * Modular Java Build Tool.
- */
-class Make {
+/** Modular Java Build Tool. */
+class Make implements Runnable {
 
   /** Version string. */
   public static final String VERSION = "1-ea";
 
-  private static final System.Logger LOGGER = System.getLogger("Make.java");
+  final Logger logger;
+  final Project project;
 
-  public void make(Project project) {
-    LOGGER.log(DEBUG, this);
-    LOGGER.log(INFO, project);
+  Make(Logger logger, Project project) {
+    this.logger = logger;
+    this.project = project;
+    logger.log(Level.INFO, "%s", this);
+  }
+
+  @Override
+  public void run() {
+    logger.log(Level.INFO, "Make %s %s", project.name(), project.version());
   }
 
   @Override
   public String toString() {
     return "Make.java " + VERSION;
+  }
+
+  interface Logger {
+    void log(Level level, String format, Object... args);
+    static Logger ofSystem() {
+      return new Logger() {
+        final boolean verbose = Boolean.getBoolean("verbose");
+        final Instant start = Instant.now();
+        @Override
+        public void log(Level level, String format, Object... args) {
+          if (level.compareTo(Level.INFO) < 0 && !verbose) return;
+          var millis = Duration.between(start, Instant.now()).toMillis();
+          var message = String.format(format, args);
+          var stream = level.compareTo(Level.WARNING) < 0 ? System.out : System.err;
+          stream.printf("%7d|%7s| %s%n", millis, level, message);
+        }
+      };
+    }
   }
 
   /*record*/ static class Project {
@@ -59,14 +82,5 @@ class Make {
     public Version version() {
       return version;
     }
-
-    @Override
-    public String toString() {
-      return "Project{" +
-             "name='" + name + '\'' +
-             ", version=" + version +
-             '}';
-    }
   }
-
 }
