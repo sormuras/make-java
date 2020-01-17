@@ -32,15 +32,6 @@ class Make {
 
   private static final System.Logger LOGGER = System.getLogger("Make.java");
 
-  /**
-   * Main entry-point.
-   */
-  public static void main(String... args) {
-    LOGGER.log(DEBUG, "");
-    var project = new Project("project", Version.parse("1-ea"));
-    new Make().make(project);
-  }
-
   public void make(Project project) {
     LOGGER.log(DEBUG, this);
     LOGGER.log(INFO, project);
@@ -56,9 +47,9 @@ class Make {
     final String name;
     final Version version;
 
-    Project(String name, Version version) {
+    Project(String name, String version) {
       this.name = name;
-      this.version = version;
+      this.version = Version.parse(version);
     }
 
     public String name() {

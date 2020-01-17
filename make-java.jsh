@@ -1,27 +1,72 @@
 /*
- * Create default build program unless it already exists.
+ * Make.java - Modular Java Build Tool
+ * Copyright (C) 2020 Christian Stein
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-var build = Path.of("src/.make-java/Build.java")
-if (!Files.exists(build)) {
-  Files.createDirectories(build.getParent());
-  Files.write(build, List.of(
-    "class Build {",
-    "  public static void main(String... args) {",
-    "    Make.main(args);",
-    "  }",
-    "}"
-  ));
+
+/*
+ * Declare constants.
+ */
+String VERSION = "master"
+var source = new URL("https://github.com/sormuras/make-java/raw/" + VERSION + "/src/.make-java/")
+var target = Path.of("src/.make-java")
+var make = target.resolve("Make.java")
+var build = target.resolve("Build.java")
+
+/*
+ * Source print method into this JShell session.
+ */
+/open PRINTING
+
+/*
+ * Banner!
+ */
+println()
+println("Initialize make-java in directory: " + Path.of("").toAbsolutePath())
+
+/*
+ * Download build tool and other assets from GitHub to local directory.
+ */
+println()
+println("Download assets to " + target.toAbsolutePath() + "...")
+println()
+Files.createDirectories(target)
+for (var asset : Set.of(make, build)) {
+  if (Files.exists(asset)) {
+    println("Skip download -- using existing file: " + asset);
+  } else {
+    var remote = new URL(source, asset.getFileName().toString());
+    println("Load " + remote + "...");
+    try (var stream = remote.openStream()) {
+      Files.copy(stream, asset, StandardCopyOption.REPLACE_EXISTING);
+    }
+    println("  -> " + asset);
+  }
 }
 
 /*
- * Source remote build tool and local build program into this JShell session.
+ * Source build tool and build program into this JShell session.
  */
-/open https://github.com/sormuras/make-java/raw/master/src/main/Make.java
+/open src/.make-java/Make.java
 /open src/.make-java/Build.java
 
 /*
  * Launch build program and report exit code.
  */
+println()
+println("Launch build program: " + build)
+println()
 int code = 0
 try {
   Build.main();
