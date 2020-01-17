@@ -63,7 +63,7 @@ var java = "java --show-version -cp .make-java/classes Build"
 println()
 println("Generating local launchers and initial configuration...")
 println("  -> make-java")
-Files.write(Path.of("make-java"), List.of("//usr/bin/env " + javac, "//usr/bin/env " + java + " \"$@\"")).toFile().setExecutable(true)
+Files.write(Path.of("make-java"), List.of("/usr/bin/env " + javac, "/usr/bin/env " + java + " \"$@\"")).toFile().setExecutable(true)
 println("  -> make-java.bat")
 Files.write(Path.of("make-java.bat"), List.of("@ECHO OFF", javac, java + " %*"))
 

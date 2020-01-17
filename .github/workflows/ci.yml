@@ -16,3 +16,5 @@ jobs:
       run: jshell --version
     - name: 'Build using JShell'
       run: jshell make-java.jsh
+    - name: 'Build using local launcher'
+      run: ./make-java
