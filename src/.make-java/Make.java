@@ -79,13 +79,14 @@ class Make implements Runnable {
   private void run(Tool.Call call, String indent) {
     var name = call.name();
     var args = call.args();
-    log(Level.DEBUG, "%srun(%s%s)", indent, name, String.join(" ", args));
+    var join = args.isEmpty() ? "" : " " + String.join(" ", args);
+    log(Level.DEBUG, indent + "run(%s%s)", name, join);
 
     if (call instanceof Tool.Plan) {
       var plan = ((Tool.Plan) call);
       var stream = plan.parallel() ? plan.calls().stream().parallel() : plan.calls().stream();
       stream.forEach(child -> run(child, indent + " "));
-      log(Level.DEBUG, "%send(%s)", indent, name);
+      log(Level.DEBUG, indent + "end(%s)", name);
       return;
     }
 
@@ -97,10 +98,10 @@ class Make implements Runnable {
       var err = new StringWriter();
       var array = args.toArray(String[]::new);
       var code = tool.get().run(new PrintWriter(out, true), new PrintWriter(err, true), array);
-      out.toString().lines().forEach(line -> log(Level.TRACE, "%s  %s", indent, line));
-      err.toString().lines().forEach(line -> log(Level.WARNING, "%s  %s", indent, line));
+      out.toString().lines().forEach(line -> log(Level.TRACE, indent + "  %s", line));
+      err.toString().lines().forEach(line -> log(Level.WARNING, indent + "  %s", line));
       if (code != 0) {
-        var message = log(Level.ERROR, "%s run failed: %d", call, code);
+        var message = log(Level.ERROR, "%s run failed: %d", name, code);
         throw new Error(message);
       }
       return;
@@ -109,7 +110,7 @@ class Make implements Runnable {
     try {
       Tool.Default.valueOf(name).run(this, args);
     } catch (Exception e) {
-      var message = log(Level.ERROR, "%s run failed: %s -> ", call, e.getMessage());
+      var message = log(Level.ERROR, "%s run failed: %s -> ", name, e.getMessage());
       throw new Error(message, e);
     }
   }
