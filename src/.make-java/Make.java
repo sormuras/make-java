@@ -26,7 +26,6 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.spi.ToolProvider;
 
@@ -59,16 +58,16 @@ class Make implements Runnable {
   public void run() {
     log(Level.INFO, "Make %s %s", project.name(), project.version());
     var plan =
-        new Tool.Plan(
+        Tool.Plan.of(
             "/",
             false,
             Tool.Default.CREATE_DIRECTORIES.call(".make-java"),
-            new Tool.Plan(
+            Tool.Plan.of(
                 "Print version of each provided tool",
                 true,
-                new Tool.Call("javac", "--version"),
-                new Tool.Call("jar", "--version"),
-                new Tool.Call("javadoc", "--version")),
+                Tool.Call.of("javac", "--version"),
+                Tool.Call.of("jar", "--version"),
+                Tool.Call.of("javadoc", "--version")),
             Tool.Default.WRITE_SUMMARY.call(".make-java/summary.log"));
     run(plan);
   }
@@ -78,14 +77,13 @@ class Make implements Runnable {
   }
 
   private void run(Tool.Call call, String indent) {
-    var name = call.name;
-    var args = call.args;
-    var arguments = args.length == 0 ? "" : " " + String.join(" ", args);
-    log(Level.DEBUG, "%srun(%s%s)", indent, name, arguments);
+    var name = call.name();
+    var args = call.args();
+    log(Level.DEBUG, "%srun(%s%s)", indent, name, String.join(" ", args));
 
     if (call instanceof Tool.Plan) {
       var plan = ((Tool.Plan) call);
-      var stream = plan.parallel ? Arrays.stream(plan.calls).parallel() : Arrays.stream(plan.calls);
+      var stream = plan.parallel() ? plan.calls().stream().parallel() : plan.calls().stream();
       stream.forEach(child -> run(child, indent + " "));
       log(Level.DEBUG, "%send(%s)", indent, name);
       return;
@@ -97,11 +95,12 @@ class Make implements Runnable {
     if (tool.isPresent()) {
       var out = new StringWriter();
       var err = new StringWriter();
-      var code = tool.get().run(new PrintWriter(out, true), new PrintWriter(err, true), args);
+      var array = args.toArray(String[]::new);
+      var code = tool.get().run(new PrintWriter(out, true), new PrintWriter(err, true), array);
       out.toString().lines().forEach(line -> log(Level.TRACE, "%s  %s", indent, line));
       err.toString().lines().forEach(line -> log(Level.WARNING, "%s  %s", indent, line));
       if (code != 0) {
-        var message = log(Level.ERROR, "Tool %s run failed: %d", call.name, code);
+        var message = log(Level.ERROR, "%s run failed: %d", call, code);
         throw new Error(message);
       }
       return;
@@ -110,7 +109,7 @@ class Make implements Runnable {
     try {
       Tool.Default.valueOf(name).run(this, args);
     } catch (Exception e) {
-      var message = log(Level.ERROR, "Tool %s run failed: %s -> ", call.name, e.getMessage());
+      var message = log(Level.ERROR, "%s run failed: %s -> ", call, e.getMessage());
       throw new Error(message, e);
     }
   }
@@ -152,47 +151,83 @@ class Make implements Runnable {
   /** Tool API with tool call plan support. */
   interface Tool {
 
-    void run(Make make, String... args) throws Exception;
+    /** Run this tool. */
+    void run(Make make, List<String> arguments) throws Exception;
 
+    /** Built-in tool implementations. */
     enum Default implements Tool {
+      /** @see Files#createDirectories(Path, java.nio.file.attribute.FileAttribute[]) */
       CREATE_DIRECTORIES {
         @Override
-        public void run(Make make, String... args) throws Exception {
-          Files.createDirectories(Path.of(args[0]));
+        public void run(Make make, List<String> arguments) throws Exception {
+          Files.createDirectories(Path.of(arguments.get(0)));
         }
       },
+      /** Writes all log messages to file specified by the first argument. */
       WRITE_SUMMARY {
         @Override
-        public void run(Make make, String... args) throws Exception {
-          Files.write(Path.of(args[0]), make.log);
+        public void run(Make make, List<String> arguments) throws Exception {
+          Files.write(Path.of(arguments.get(0)), make.log);
         }
       };
 
       Call call(String... args) {
-        return new Call(name(), args);
+        return Call.of(name(), args);
       }
     }
 
-    class Call {
+    /** A tool call is composed of a name and the arguments. */
+    interface Call {
 
-      final String name;
-      final String[] args;
+      String name();
 
-      Call(String name, String... args) {
-        this.name = name;
-        this.args = args;
+      List<String> args();
+
+      static /*record*/ Call of(String name, String... args) {
+        return new Call() {
+          @Override
+          public String name() {
+            return name;
+          }
+
+          @Override
+          public List<String> args() {
+            return List.of(args);
+          }
+        };
       }
     }
 
-    class Plan extends Call {
+    /** A list of tool calls. */
+    interface Plan extends Call {
 
-      final boolean parallel;
-      final Call[] calls;
+      boolean parallel();
 
-      Plan(String name, boolean parallel, Call... calls) {
-        super(name);
-        this.parallel = parallel;
-        this.calls = calls;
+      List<Call> calls();
+
+      static /*record*/ Plan of(String name, boolean parallel, Call... calls) {
+        return new Plan() {
+
+          @Override
+          public String name() {
+            return name;
+          }
+
+          @Override
+          public List<String> args() {
+            return List.of();
+          }
+
+          @Override
+          public boolean parallel() {
+            return parallel;
+          }
+
+          @Override
+          public List<Call> calls() {
+            return List.of(calls);
+          }
+        };
       }
     }
   }
