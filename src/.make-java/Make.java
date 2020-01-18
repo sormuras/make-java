@@ -157,6 +157,27 @@ class Make implements Runnable {
   /** Tool API with tool call plan support. */
   interface Tool {
 
+    void run(Make make, String... args) throws Exception;
+
+    enum Default implements Tool {
+      CREATE_DIRECTORIES {
+        @Override
+        public void run(Make make, String... args) throws Exception {
+          Files.createDirectories(Path.of(args[0]));
+        }
+      },
+      WRITE_SUMMARY {
+        @Override
+        public void run(Make make, String... args) throws Exception {
+          Files.write(Path.of(args[0]), make.log);
+        }
+      };
+
+      Call call(String... args) {
+        return new Call(name(), args);
+      }
+    }
+
     class Call {
 
       final String name;
