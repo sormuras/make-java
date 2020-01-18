@@ -1,4 +1,5 @@
 .idea/
+.make-java/
 
 *.class
 *.jar

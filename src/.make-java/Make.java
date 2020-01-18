@@ -77,6 +77,33 @@ class Make implements Runnable {
     }
   }
 
+  /** Tool API with tool call plan support. */
+  interface Tool {
+
+    class Call {
+
+      final String name;
+      final String[] args;
+
+      Call(String name, String... args) {
+        this.name = name;
+        this.args = args;
+      }
+    }
+
+    class Plan extends Call {
+
+      final boolean parallel;
+      final Call[] calls;
+
+      Plan(String name, boolean parallel, Call... calls) {
+        super(name);
+        this.parallel = parallel;
+        this.calls = calls;
+      }
+    }
+  }
+
   /*record*/ static class Project {
 
     final String name;
