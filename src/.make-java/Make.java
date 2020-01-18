@@ -48,18 +48,19 @@ class Make implements Runnable {
   }
 
   interface Logger {
-    void log(Level level, String format, Object... args);
+    Logger log(Level level, String format, Object... args);
     static Logger ofSystem() {
       return new Logger() {
         final boolean verbose = Boolean.getBoolean("verbose");
         final Instant start = Instant.now();
         @Override
-        public void log(Level level, String format, Object... args) {
-          if (level.compareTo(Level.INFO) < 0 && !verbose) return;
+        public Logger log(Level level, String format, Object... args) {
+          if (level.compareTo(Level.INFO) < 0 && !verbose) return this;
           var millis = Duration.between(start, Instant.now()).toMillis();
           var message = String.format(format, args);
           var stream = level.compareTo(Level.WARNING) < 0 ? System.out : System.err;
           stream.printf("%7d|%7s| %s%n", millis, level, message);
+          return this;
         }
       };
     }
