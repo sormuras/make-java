@@ -62,14 +62,14 @@ class Make implements Runnable {
         new Tool.Plan(
             "/",
             false,
-            new Tool.Call("CreateDirectories", ".make-java"),
+            Tool.Default.CREATE_DIRECTORIES.call(".make-java"),
             new Tool.Plan(
                 "Print version of each provided tool",
                 true,
                 new Tool.Call("javac", "--version"),
                 new Tool.Call("jar", "--version"),
                 new Tool.Call("javadoc", "--version")),
-            new Tool.Call("WriteLog", ".make-java/log.txt"));
+            Tool.Default.WRITE_SUMMARY.call(".make-java/summary.log"));
     run(plan);
   }
 
@@ -93,30 +93,25 @@ class Make implements Runnable {
 
     if (Boolean.getBoolean("dry-run")) return;
 
-    try {
-      switch (name) {
-        case "CreateDirectories":
-          Files.createDirectories(Path.of(args[0]));
-          return;
-        case "WriteLog":
-          Files.write(Path.of(args[0]), log);
-          return;
+    var tool = ToolProvider.findFirst(name);
+    if (tool.isPresent()) {
+      var out = new StringWriter();
+      var err = new StringWriter();
+      var code = tool.get().run(new PrintWriter(out, true), new PrintWriter(err, true), args);
+      out.toString().lines().forEach(line -> log(Level.TRACE, "%s  %s", indent, line));
+      err.toString().lines().forEach(line -> log(Level.WARNING, "%s  %s", indent, line));
+      if (code != 0) {
+        var message = log(Level.ERROR, "Tool %s run failed: %d", call.name, code);
+        throw new Error(message);
       }
-    } catch (Exception e) {
-      var message = log(Level.ERROR, "Tool %s run failed: %d -> " + call.name, e.getMessage());
-      throw new Error(message, e);
+      return;
     }
 
-    var tool = ToolProvider.findFirst(name).orElseThrow();
-    var out = new StringWriter();
-    var err = new StringWriter();
-
-    var code = tool.run(new PrintWriter(out, true), new PrintWriter(err, true), args);
-    out.toString().lines().forEach(line -> log(Level.TRACE, "%s  %s", indent, line));
-    err.toString().lines().forEach(line -> log(Level.WARNING, "%s  %s", indent, line));
-    if (code != 0) {
-      var message = log(Level.ERROR, "Tool %s run failed: %d", call.name, code);
-      throw new Error(message);
+    try {
+      Tool.Default.valueOf(name).run(this, args);
+    } catch (Exception e) {
+      var message = log(Level.ERROR, "Tool %s run failed: %s -> ", call.name, e.getMessage());
+      throw new Error(message, e);
     }
   }
 
