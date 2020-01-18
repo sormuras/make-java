@@ -33,18 +33,17 @@ var build = target.resolve("Build.java")
  * Banner!
  */
 println()
-println("Initialize make-java in directory: " + Path.of("").toAbsolutePath())
+println("Bootstrap make-java in directory: " + Path.of("").toAbsolutePath())
 
 /*
  * Download build tool and other assets from GitHub to local directory.
  */
 println()
 println("Download assets to " + target.toAbsolutePath() + "...")
-println()
 Files.createDirectories(target)
 for (var asset : Set.of(make, build)) {
   if (Files.exists(asset)) {
-    println("Skip download -- using existing file: " + asset);
+    println("  skip download -- using existing file: " + asset);
   } else {
     var remote = new URL(source, asset.getFileName().toString());
     println("Load " + remote + "...");
@@ -72,13 +71,9 @@ Files.write(Path.of("make-java.bat"), List.of("@ECHO OFF", javac, java + " %*"))
  */
 println()
 println("Bootstrap finished. Use the following command to launch your build program:")
-println("")
+println()
 println("    Linux: ./make-java <args...>")
 println("  Windows: make-java <args...>")
-println()
-println()
-println("Have fun! https://github.com/sponsors/sormuras (-:")
-println()
 
 /*
  * Source build tool and build program into this JShell session.
@@ -99,5 +94,9 @@ try {
   throwable.printStackTrace(System.err);
   code = 1;
 }
+
+println()
+println("Have fun! https://github.com/sponsors/sormuras (-:")
+println()
 
 /exit code
