@@ -47,22 +47,32 @@ class Make implements Runnable {
     return "Make.java " + VERSION;
   }
 
+  /** Simple Logger API. */
   interface Logger {
+    /** Log the formatted message at the specified level. */
     Logger log(Level level, String format, Object... args);
+
+    /** Create default logger printing to {@link System#out} and {@link System#err}. */
     static Logger ofSystem() {
-      return new Logger() {
-        final boolean verbose = Boolean.getBoolean("verbose");
+      return ofSystem(Boolean.getBoolean("verbose"));
+    }
+
+    /** Create default logger printing to {@link System#out} and {@link System#err}. */
+    static Logger ofSystem(boolean verbose) {
+      class SystemLogger implements Logger {
         final Instant start = Instant.now();
+
         @Override
         public Logger log(Level level, String format, Object... args) {
           if (level.compareTo(Level.INFO) < 0 && !verbose) return this;
           var millis = Duration.between(start, Instant.now()).toMillis();
           var message = String.format(format, args);
           var stream = level.compareTo(Level.WARNING) < 0 ? System.out : System.err;
-          stream.printf("%7d|%7s| %s%n", millis, level, message);
+          stream.printf(verbose ? "%7d|%7s| %s%n" : "%3$s%n", millis, level, message);
           return this;
         }
-      };
+      }
+      return new SystemLogger();
     }
   }
 
