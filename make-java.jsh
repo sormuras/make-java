@@ -59,7 +59,7 @@ for (var asset : Set.of(make, build)) {
  * Generate local launchers.
  */
 var javac = "javac -d .make-java/classes " + make + " " + build
-var java = "java --show-version -cp .make-java/classes Build"
+var java = "java  -cp .make-java/classes Build"
 println()
 println("Generating local launchers and initial configuration...")
 println("  -> make-java")

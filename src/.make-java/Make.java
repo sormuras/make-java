@@ -35,6 +35,7 @@ class Make implements Runnable {
     this.logger = logger;
     this.project = project;
     logger.log(Level.INFO, "%s", this);
+    logger.log(Level.DEBUG, "Java %s", Runtime.version());
   }
 
   @Override
