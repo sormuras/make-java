@@ -17,10 +17,18 @@
 
 // default package
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.lang.System.Logger.Level;
 import java.lang.module.ModuleDescriptor.Version;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.spi.ToolProvider;
 
 /** Modular Java Build Tool. */
 class Make implements Runnable {
@@ -28,19 +36,88 @@ class Make implements Runnable {
   /** Version string. */
   public static final String VERSION = "1-ea";
 
-  final Logger logger;
-  final Project project;
+  private final Logger logger;
+  private final Project project;
+  private final List<String> log;
 
   Make(Logger logger, Project project) {
     this.logger = logger;
     this.project = project;
-    logger.log(Level.INFO, "%s", this);
-    logger.log(Level.DEBUG, "Java %s", Runtime.version());
+    this.log = new ArrayList<>();
+    log(Level.INFO, "%s", this);
+    log(Level.DEBUG, "Java %s", Runtime.version());
+  }
+
+  private synchronized String log(Level level, String format, Object... args) {
+    var message = String.format(format, args);
+    log.add(Instant.now() + "|" + level + "|" + Thread.currentThread().getName() + "|" + message);
+    logger.log(level, message);
+    return message;
   }
 
   @Override
   public void run() {
-    logger.log(Level.INFO, "Make %s %s", project.name(), project.version());
+    log(Level.INFO, "Make %s %s", project.name(), project.version());
+    var plan =
+        new Tool.Plan(
+            "/",
+            false,
+            new Tool.Call("CreateDirectories", ".make-java"),
+            new Tool.Plan(
+                "Print version of each provided tool",
+                true,
+                new Tool.Call("javac", "--version"),
+                new Tool.Call("jar", "--version"),
+                new Tool.Call("javadoc", "--version")),
+            new Tool.Call("WriteLog", ".make-java/log.txt"));
+    run(plan);
+  }
+
+  public void run(Tool.Call call) {
+    run(call, "");
+  }
+
+  private void run(Tool.Call call, String indent) {
+    var name = call.name;
+    var args = call.args;
+    var arguments = args.length == 0 ? "" : " " + String.join(" ", args);
+    log(Level.DEBUG, "%srun(%s%s)", indent, name, arguments);
+
+    if (call instanceof Tool.Plan) {
+      var plan = ((Tool.Plan) call);
+      var stream = plan.parallel ? Arrays.stream(plan.calls).parallel() : Arrays.stream(plan.calls);
+      stream.forEach(child -> run(child, indent + " "));
+      log(Level.DEBUG, "%send(%s)", indent, name);
+      return;
+    }
+
+    if (Boolean.getBoolean("dry-run")) return;
+
+    try {
+      switch (name) {
+        case "CreateDirectories":
+          Files.createDirectories(Path.of(args[0]));
+          return;
+        case "WriteLog":
+          Files.write(Path.of(args[0]), log);
+          return;
+      }
+    } catch (Exception e) {
+      var message = log(Level.ERROR, "Tool %s run failed: %d -> " + call.name, e.getMessage());
+      throw new Error(message, e);
+    }
+
+    var tool = ToolProvider.findFirst(name).orElseThrow();
+    var out = new StringWriter();
+    var err = new StringWriter();
+
+    var code = tool.run(new PrintWriter(out, true), new PrintWriter(err, true), args);
+    out.toString().lines().forEach(line -> log(Level.TRACE, "%s  %s", indent, line));
+    err.toString().lines().forEach(line -> log(Level.WARNING, "%s  %s", indent, line));
+    if (code != 0) {
+      var message = log(Level.ERROR, "Tool %s run failed: %d", call.name, code);
+      throw new Error(message);
+    }
   }
 
   @Override
