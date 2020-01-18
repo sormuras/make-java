@@ -21,7 +21,7 @@ jobs:
     - name: 'Set up JUnit'
       uses: sormuras/setup-junit@master
       id: junit
-    - name: 'Launch JUnit'
+    - name: 'Compile and run all tests'
       run: |
         javac -d .make-java/classes --class-path ${{ steps.junit.outputs.standalone-jar }}:.make-java/classes $(find src/test -name "*.java")
         java -jar ${{ steps.junit.outputs.standalone-jar }} --class-path .make-java/classes --scan-class-path
