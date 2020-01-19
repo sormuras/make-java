@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.spi.ToolProvider;
 
 /** Modular Java Build Tool. */
-class Make implements Runnable {
+public class Make implements Runnable {
 
   /** Version string. */
   public static final String VERSION = "1-ea";
@@ -121,7 +121,7 @@ class Make implements Runnable {
   }
 
   /** Simple Logger API. */
-  interface Logger {
+  public interface Logger {
     /** Log the formatted message at the specified level. */
     Logger log(Level level, String format, Object... args);
 
@@ -150,7 +150,7 @@ class Make implements Runnable {
   }
 
   /** Tool API with tool call plan support. */
-  interface Tool {
+  public interface Tool {
 
     /** Run this tool. */
     void run(Make make, List<String> arguments) throws Exception;
@@ -233,7 +233,7 @@ class Make implements Runnable {
     }
   }
 
-  /*record*/ static class Project {
+  public /*record*/ static class Project {
 
     final String name;
     final Version version;
