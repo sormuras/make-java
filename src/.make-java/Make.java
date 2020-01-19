@@ -17,7 +17,6 @@
 
 // default package
 
-import java.io.File;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.System.Logger.Level;
@@ -29,9 +28,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.regex.Pattern;
 import java.util.spi.ToolProvider;
-import java.util.stream.Collectors;
 
 /** Modular Java Build Tool. */
 public class Make implements Runnable {
@@ -239,12 +236,16 @@ public class Make implements Runnable {
 
   public /*record*/ static class Project {
 
+    public static Project of(Path base) {
+      return Builder.of(base).build();
+    }
+
     final String name;
     final Version version;
 
-    Project(String name, String version) {
+    Project(String name, Version version) {
       this.name = name;
-      this.version = Version.parse(version);
+      this.version = version;
     }
 
     public String name() {
@@ -254,91 +255,31 @@ public class Make implements Runnable {
     public Version version() {
       return version;
     }
-  }
 
-  /** Module source directory tree layout. */
-  public enum Layout {
-    /**
-     * Default tree layout of main/test realms with nested java/resources directories.
-     *
-     * <ul>
-     *   <li>{@code src/${MODULE}/${REALM}/java/module-info.java}
-     * </ul>
-     *
-     * Module source path examples:
-     *
-     * <ul>
-     *   <li>{@code --module-source-path src/ * /main/java}
-     *   <li>{@code --module-source-path src/ * /test/java:src/ * /test/module}
-     * </ul>
-     */
-    DEFAULT(Pattern.compile(".+/(main|test)/(java|module)")),
+    public static class Builder {
 
-    /**
-     * Simple directory tree layout.
-     *
-     * <ul>
-     *   <li>{@code src/${MODULE}/module-info.java}
-     * </ul>
-     *
-     * Module source path example:
-     *
-     * <ul>
-     *   <li>{@code --module-source-path src}
-     * </ul>
-     *
-     * @see <a href="https://openjdk.java.net/projects/jigsaw/quick-start">Project Jigsaw: Module
-     *     System Quick-Start Guide</a>
-     */
-    JIGSAW(Pattern.compile(".+")),
+      private String name = "project";
+      private String version = "1-ea";
 
-    /**
-     * Group-based default directory tree layout.
-     *
-     * <ul>
-     *   <li>{@code src/${GROUP}/${MODULE}/${REALM}/java/module-info.java}
-     * </ul>
-     *
-     * Module source path examples with groups:
-     *
-     * <ul>
-     *   <li>{@code --module-source-path src/org.junit.jupiter/ * /main/java}
-     *   <li>{@code --module-source-path src/org.junit.platform/ * /main/java}
-     * </ul>
-     */
-    GROUPED(Pattern.compile(".+/.+/(main|test)/(java|module)"));
-
-    private final Pattern pattern;
-    private final long separators;
-
-    Layout(Pattern pattern) {
-      this.pattern = pattern;
-      this.separators = pattern.toString().chars().filter(c -> c == '/').count();
-    }
-
-    public boolean matches(String string) {
-      return separators == string.chars().filter(c -> c == '/').count()
-          && pattern.matcher(string).matches();
-    }
-
-    /** Return modular layout of the specified directory. */
-    public static Optional<Layout> valueOf(Path directory) {
-      try (var stream = Files.find(directory, 5, (path, __) -> path.endsWith("module-info.java"))) {
-        var strings =
-            stream
-                .map(directory::relativize)
-                .map(Path::getParent)
-                .map(Path::toString)
-                .map(string -> string.replace(File.separatorChar, '/'))
-                .collect(Collectors.toList());
-        if (strings.isEmpty()) return Optional.empty();
-        for (var layout : values()) {
-          if (strings.stream().allMatch(layout::matches)) return Optional.of(layout);
-        }
-      } catch (Exception e) {
-        throw new Error(e);
+      public static Builder of(Path base) {
+        var builder = new Builder();
+        Optional.ofNullable(base.getFileName()).map(Path::toString).ifPresent(builder::setName);
+        return builder;
       }
-      return Optional.empty();
+
+      public Project build() {
+        return new Project(name, Version.parse(version));
+      }
+
+      public Builder setName(String name) {
+        this.name = name;
+        return this;
+      }
+
+      public Builder setVersion(String version) {
+        this.version = version;
+        return this;
+      }
     }
   }
 }
