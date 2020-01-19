@@ -1,4 +1,5 @@
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class ProjectTests {
@@ -11,23 +12,12 @@ class ProjectTests {
         Make.Project.Builder.of(logger, base)
             .setName("foo")
             .setVersion("1")
-            //.setMainModules("org.foo", "org.foo.bar")
-            //.setMainModuleSourcePath("src/${MODULE}/main/java")
+            .setMain(
+                new Make.Project.Realm.Builder("main")
+                    .setModules(List.of("org.foo", "org.foo.bar"))
+                    .build())
             .build();
 
-    var folder = Make.Folder.of(base);
-    var compile =
-        Make.Tool.Plan.of(
-            "Compile",
-            false,
-            Make.Tool.Call.of(
-                "javac",
-                "-d",
-                folder.out("classes/main").toString(),
-                "--module-source-path",
-                folder.src("${MODULE}/main/java").toString().replace("${MODULE}", "*"),
-                "--module",
-                "org.foo,org.foo.bar"));
-    new Make(logger, folder, project).run().run(compile);
+    new Make(logger, Make.Folder.of(base), project, new Make.Tool.Planner()).run();
   }
 }

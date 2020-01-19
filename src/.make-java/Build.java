@@ -10,6 +10,6 @@ class Build {
     var base = Path.of("");
     var logger = Make.Logger.ofSystem(true).log(Level.DEBUG, "Build.java (args=%s)", List.of(args));
     var project = Make.Project.Builder.of(logger, base).setVersion("1-ea").build();
-    new Make(logger, Make.Folder.of(base), project).run();
+    new Make(logger, Make.Folder.of(base), project, new Make.Tool.Planner()).run();
   }
 }

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class MakeTests {
@@ -24,5 +25,10 @@ class MakeTests {
     assertEquals(Path.of("lib"), make.folder().lib());
     assertEquals(Path.of(".make-java"), make.folder().out());
     assertEquals("make-java", make.project().name());
+    assertEquals("1-ea", make.project().version().toString());
+    assertEquals("main", make.project().main().name());
+    assertEquals(List.of(), make.project().main().modules());
+    assertEquals("test", make.project().test().name());
+    assertEquals(List.of(), make.project().test().modules());
   }
 }
