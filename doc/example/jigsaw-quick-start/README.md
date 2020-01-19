@@ -1,4 +1,4 @@
-# Test project: layout/jigsaw-quick-start
+# Test project: jigsaw-quick-start
 
 - `src\${MODULE}\module-info.java`
 
