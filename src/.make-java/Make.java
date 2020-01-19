@@ -31,7 +31,7 @@ import java.util.Optional;
 import java.util.spi.ToolProvider;
 
 /** Modular Java Build Tool. */
-public class Make implements Runnable {
+public class Make {
 
   /** Version string. */
   public static final String VERSION = "1-ea";
@@ -40,6 +40,10 @@ public class Make implements Runnable {
   private final Folder folder;
   private final Project project;
   private final List<String> log;
+
+  Make(Logger logger) {
+    this(logger, Folder.of(), Project.Builder.of(logger, Path.of("")).build());
+  }
 
   Make(Logger logger, Folder folder, Project project) {
     this.logger = logger;
@@ -71,8 +75,7 @@ public class Make implements Runnable {
     return message;
   }
 
-  @Override
-  public void run() {
+  public Make run() {
     log(Level.INFO, "Make %s %s", project.name(), project.version());
     var plan =
         Tool.Plan.of(
@@ -86,14 +89,14 @@ public class Make implements Runnable {
                 Tool.Call.of("jar", "--version"),
                 Tool.Call.of("javadoc", "--version")),
             Tool.Default.WRITE_SUMMARY.call(folder.out("summary.log").toString()));
-    run(plan);
+    return run(plan);
   }
 
-  public void run(Tool.Call call) {
-    run(call, "");
+  public Make run(Tool.Call call) {
+    return run(call, "");
   }
 
-  private void run(Tool.Call call, String indent) {
+  private Make run(Tool.Call call, String indent) {
     var name = call.name();
     var args = call.args();
     var join = args.isEmpty() ? "" : " " + String.join(" ", args);
@@ -104,10 +107,10 @@ public class Make implements Runnable {
       var stream = plan.parallel() ? plan.calls().stream().parallel() : plan.calls().stream();
       stream.forEach(child -> run(child, indent + " "));
       log(Level.DEBUG, indent + "end(%s)", name);
-      return;
+      return this;
     }
 
-    if (Boolean.getBoolean("dry-run")) return;
+    if (Boolean.getBoolean("dry-run")) return this;
 
     var tool = ToolProvider.findFirst(name);
     if (tool.isPresent()) {
@@ -119,9 +122,9 @@ public class Make implements Runnable {
       err.toString().lines().forEach(line -> log(Level.WARNING, indent + "  %s", line));
       if (code != 0) {
         var message = log(Level.ERROR, "%s run failed: %d", name, code);
-        throw new Error(message);
+        throw new Error(message, new RuntimeException(err.toString()));
       }
-      return;
+      return this;
     }
 
     try {
@@ -130,6 +133,8 @@ public class Make implements Runnable {
       var message = log(Level.ERROR, "%s run failed: %s -> ", name, e.getMessage());
       throw new Error(message, e);
     }
+
+    return this;
   }
 
   @Override
@@ -203,6 +208,10 @@ public class Make implements Runnable {
 
     public Path src() {
       return src;
+    }
+
+    public Path src(String... more) {
+      return resolve(src, more);
     }
 
     public Path lib() {
