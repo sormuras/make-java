@@ -37,15 +37,31 @@ public class Make implements Runnable {
   public static final String VERSION = "1-ea";
 
   private final Logger logger;
+  private final Folder folder;
   private final Project project;
   private final List<String> log;
 
-  Make(Logger logger, Project project) {
+  Make(Logger logger, Folder folder, Project project) {
     this.logger = logger;
+    this.folder = folder;
     this.project = project;
     this.log = new ArrayList<>();
     log(Level.INFO, "%s", this);
     log(Level.DEBUG, "Java %s", Runtime.version());
+    log(Level.DEBUG, "Folder %s", folder);
+    log(Level.DEBUG, "Project %s", project);
+  }
+
+  public Logger logger() {
+    return logger;
+  }
+
+  public Folder folder() {
+    return folder;
+  }
+
+  public Project project() {
+    return project;
   }
 
   private synchronized String log(Level level, String format, Object... args) {
@@ -62,14 +78,14 @@ public class Make implements Runnable {
         Tool.Plan.of(
             "/",
             false,
-            Tool.Default.CREATE_DIRECTORIES.call(".make-java"),
+            Tool.Default.CREATE_DIRECTORIES.call(folder.out().toString()),
             Tool.Plan.of(
                 "Print version of each provided tool",
                 true,
                 Tool.Call.of("javac", "--version"),
                 Tool.Call.of("jar", "--version"),
                 Tool.Call.of("javadoc", "--version")),
-            Tool.Default.WRITE_SUMMARY.call(".make-java/summary.log"));
+            Tool.Default.WRITE_SUMMARY.call(folder.out("summary.log").toString()));
     run(plan);
   }
 
@@ -147,6 +163,58 @@ public class Make implements Runnable {
         }
       }
       return new SystemLogger();
+    }
+  }
+
+  public /*record*/ static final class Folder {
+
+    public static Folder of() {
+      return of(Path.of(""));
+    }
+
+    public static Folder of(Path base) {
+      return new Folder(base, base.resolve("src"), base.resolve("lib"), base.resolve(".make-java"));
+    }
+
+    private static Path resolve(Path path, String... more) {
+      if (more.length == 0) return path;
+      return path.resolve(String.join("/", more));
+    }
+
+    private final Path base;
+    private final Path src;
+    private final Path lib;
+    private final Path out;
+
+    public Folder(Path base, Path src, Path lib, Path out) {
+      this.base = base;
+      this.src = src;
+      this.lib = lib;
+      this.out = out;
+    }
+
+    public Path base() {
+      return base;
+    }
+
+    public Path base(String... more) {
+      return resolve(base, more);
+    }
+
+    public Path src() {
+      return src;
+    }
+
+    public Path lib() {
+      return lib;
+    }
+
+    public Path out() {
+      return out;
+    }
+
+    public Path out(String... more) {
+      return resolve(out, more);
     }
   }
 
@@ -234,11 +302,8 @@ public class Make implements Runnable {
     }
   }
 
+  /** Project model. */
   public /*record*/ static class Project {
-
-    public static Project of(Path base) {
-      return Builder.of(base).build();
-    }
 
     final String name;
     final Version version;
@@ -261,9 +326,11 @@ public class Make implements Runnable {
       private String name = "project";
       private String version = "1-ea";
 
-      public static Builder of(Path base) {
+      public static Builder of(Logger logger, Path base) {
         var builder = new Builder();
-        Optional.ofNullable(base.getFileName()).map(Path::toString).ifPresent(builder::setName);
+        var absolute = base.toAbsolutePath();
+        logger.log(Level.TRACE, "Parsing directory '%s' for project properties.", absolute);
+        Optional.ofNullable(absolute.getFileName()).map(Path::toString).ifPresent(builder::setName);
         return builder;
       }
 
