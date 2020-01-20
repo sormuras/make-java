@@ -402,9 +402,10 @@ public class Make {
                 .replace("${MODULE}", "*");
         var modulePath =
             realm.dependencies().stream()
-                .map(other -> folder.out("classes", other.name()))
+                .map(other -> folder.out("modules", other.name())) // or "classes"
                 .map(Path::toString)
                 .collect(Collectors.joining(File.pathSeparator));
+        var destination = folder.out("classes", realm.path().toString());
         return Plan.of(
             String.format("Compile %s realm", realm.name()),
             false,
@@ -412,8 +413,35 @@ public class Make {
                 .add("--module", String.join(",", realm.modules()))
                 .add("--module-source-path", moduleSourcePath)
                 .add(!modulePath.isEmpty(), "--module-path", modulePath)
-                .add("-d", folder.out("classes", realm.path().toString()))
-                .build());
+                .add("-d", destination)
+                .build(),
+            jar(make, realm));
+      }
+
+      public Plan jar(Make make, Project.Realm realm) {
+        if (realm.modules().isEmpty()) {
+          return Plan.of(String.format("No modules in %s realm", realm.name()), false);
+        }
+        var folder = make.folder();
+        var destination = folder.out("modules", realm.path().toString());
+        var calls = new ArrayList<Call>();
+        for (var module : realm.modules()) {
+          var file = destination.resolve(module + "-" + make.project().version() + ".jar");
+          var content = folder.out("classes", realm.path().toString(), module);
+          calls.add(
+              Call.newCall("jar")
+                  .add("--create")
+                  .add("--file", file)
+                  // .add(make.logger.verbose(), "--verbose")
+                  .add("-C", content)
+                  .add(".")
+                  .build());
+        }
+        return Plan.of(
+            String.format("Jar %s module(s)", realm.name()),
+            false,
+            Default.CREATE_DIRECTORIES.call(destination.toString()),
+            Plan.of("Jar calls", true, calls.toArray(Call[]::new)));
       }
 
       /** Creates the master build plan. */
