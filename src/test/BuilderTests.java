@@ -28,6 +28,6 @@ class BuilderTests {
             .build();
     // record ... assertEquals(expected, actual);
     assertEquals(expected.name(), actual.name());
-    assertEquals(expected.version, actual.version());
+    assertEquals(expected.version(), actual.version());
   }
 }
