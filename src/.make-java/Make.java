@@ -29,6 +29,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.spi.ToolProvider;
 import java.util.stream.Collectors;
 
@@ -84,7 +85,7 @@ public class Make {
     log(Level.INFO, "Make %s %s", project.name(), project.version());
     var plan = planner.run(this, List.of());
     if (Boolean.getBoolean("dry-run")) {
-      Tool.print(new PrintWriter(System.out, true), plan, "");
+      Tool.print(plan);
       return this;
     }
     return run(plan);
@@ -95,10 +96,7 @@ public class Make {
   }
 
   private Make run(Tool.Call call, String indent) {
-    var name = call.name();
-    var args = call.args();
-    var join = args.isEmpty() ? "" : " " + String.join(" ", args);
-    log(Level.DEBUG, indent + "run(%s%s)", name, join);
+    log(Level.DEBUG, indent + "run(%s)", call);
 
     if (call instanceof Tool.Plan) {
       var plan = ((Tool.Plan) call);
@@ -106,31 +104,31 @@ public class Make {
       if (calls.isEmpty()) return this;
       var stream = plan.parallel() ? calls.stream().parallel() : calls.stream();
       stream.forEach(child -> run(child, indent + " "));
-      log(Level.DEBUG, indent + "end(%s)", name);
+      log(Level.DEBUG, indent + "end(%s)", call.name());
       return this;
     }
 
     if (Boolean.getBoolean("dry-run")) return this;
 
-    var tool = ToolProvider.findFirst(name);
+    var tool = ToolProvider.findFirst(call.name());
     if (tool.isPresent()) {
       var out = new StringWriter();
       var err = new StringWriter();
-      var array = args.toArray(String[]::new);
+      var array = call.args().toArray(String[]::new);
       var code = tool.get().run(new PrintWriter(out, true), new PrintWriter(err, true), array);
       out.toString().lines().forEach(line -> log(Level.TRACE, indent + "  %s", line));
       err.toString().lines().forEach(line -> log(Level.WARNING, indent + "  %s", line));
       if (code != 0) {
-        var message = log(Level.ERROR, "%s run failed: %d", name, code);
+        var message = log(Level.ERROR, "%s run failed: %d", call.name(), code);
         throw new Error(message, new RuntimeException(err.toString()));
       }
       return this;
     }
 
     try {
-      Tool.Default.valueOf(name).run(this, args);
+      Tool.Default.valueOf(call.name()).run(this, call.args());
     } catch (Exception e) {
-      var message = log(Level.ERROR, "%s run failed: %s -> ", name, e.getMessage());
+      var message = log(Level.ERROR, "%s run failed: %s -> ", call.name(), e.getMessage());
       throw new Error(message, e);
     }
 
@@ -233,11 +231,16 @@ public class Make {
     /** Run this tool. */
     R run(Make make, List<String> arguments) throws Exception;
 
-    static void print(PrintWriter writer, Tool.Call call, String indent) {
-      writer.println(indent + call.name() + " " + call.args());
+    /** Recursively print the given tool call to {@link System#out} */
+    static void print(Call call) {
+      print(call, "", "\t", System.out::println);
+    }
+
+    static void print(Call call, String indent, String increment, Consumer<String> consumer) {
+      consumer.accept(indent + call);
       if (call instanceof Tool.Plan) {
         var plan = ((Tool.Plan) call);
-        for (var child : plan.calls()) print(writer, child, indent + "\t");
+        for (var child : plan.calls()) print(child, indent + increment, increment, consumer);
       }
     }
 
@@ -274,6 +277,14 @@ public class Make {
 
       static /*record*/ Call of(String name, String... args) {
         return new Call() {
+
+          final String $ = name + (args.length == 0 ? "" : " " + String.join(" ", args));
+
+          @Override
+          public String toString() {
+            return $;
+          }
+
           @Override
           public String name() {
             return name;
@@ -296,6 +307,13 @@ public class Make {
 
       static /*record*/ Plan of(String name, boolean parallel, Call... calls) {
         return new Plan() {
+
+          final String $ = name + " {" + calls.length + (parallel ? " + parallel}" : "}");
+
+          @Override
+          public String toString() {
+            return $;
+          }
 
           @Override
           public String name() {
