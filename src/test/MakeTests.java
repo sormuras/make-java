@@ -30,9 +30,10 @@ class MakeTests {
     assertEquals(Path.of(".make-java"), make.folder().out());
     assertEquals("make-java", make.project().name());
     assertEquals("1-ea", make.project().version().toString());
-    assertEquals("main", make.project().main().name());
-    assertEquals(List.of(), make.project().main().modules());
-    assertEquals("test", make.project().test().name());
-    assertEquals(List.of(), make.project().test().modules());
+    assertEquals(Make.Project.Layout.DEFAULT, make.project().layout());
+    assertEquals("main", make.project().realms().get(0).name());
+    assertEquals(List.of(), make.project().realms().get(0).modules());
+    assertEquals("test", make.project().realms().get(1).name());
+    assertEquals(List.of(), make.project().realms().get(1).modules());
   }
 }

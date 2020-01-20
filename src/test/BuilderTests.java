@@ -14,16 +14,17 @@ class BuilderTests {
         new Make.Project.Builder()
             .setName("default-main-test")
             .setVersion("1-ea")
-            .setMain(
-                new Make.Project.Realm.Builder("main")
-                    .setModules(List.of("org.foo", "org.foo.bar"))
-                    .setModuleSourcePaths(List.of(Path.of("src/${MODULE}/main/java")))
-                    .build())
-            .setTest(
-                new Make.Project.Realm.Builder("test")
-                    .setModules(List.of("test.base"))
-                    .setModuleSourcePaths(List.of(Path.of("src/${MODULE}/test/java")))
-                    .build())
+            .setLayout(Make.Project.Layout.DEFAULT)
+            .setRealms(
+                List.of(
+                    new Make.Project.Realm.Builder("main")
+                        .setModules(List.of("org.foo", "org.foo.bar"))
+                        .setModuleSourcePaths(List.of(Path.of("src/${MODULE}/main/java")))
+                        .build(),
+                    new Make.Project.Realm.Builder("test")
+                        .setModules(List.of("test.base"))
+                        .setModuleSourcePaths(List.of(Path.of("src/${MODULE}/test/java")))
+                        .build()))
             .build();
     // record ... assertEquals(expected, actual);
     assertEquals(expected.name(), actual.name());
