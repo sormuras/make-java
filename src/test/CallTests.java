@@ -12,6 +12,7 @@ class CallTests {
             .add("key", "value")
             .add(true, "conditional")
             .add(true, "conditional-key", "conditional-value")
+            .forEach(List.of(3, 'a', "ch"), Make.Tool.Call.Builder::add)
             .build();
     assertLinesMatch(
         List.of(
@@ -22,7 +23,10 @@ class CallTests {
             "value",
             "conditional",
             "conditional-key",
-            "conditional-value"),
+            "conditional-value",
+            "3",
+            "a",
+            "ch"),
         call.args());
   }
 }

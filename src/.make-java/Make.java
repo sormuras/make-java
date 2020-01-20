@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
 import java.util.spi.ToolProvider;
@@ -313,6 +314,10 @@ public class Make {
           for (var initial : initials) add(initial);
         }
 
+        public Call build() {
+          return Call.of(name, args.stream().map(Object::toString).toArray(String[]::new));
+        }
+
         public Builder add(Object arg) {
           args.add(arg);
           return this;
@@ -332,8 +337,9 @@ public class Make {
           return this;
         }
 
-        public Call build() {
-          return Call.of(name, args.stream().map(Object::toString).toArray(String[]::new));
+        public <T> Builder forEach(Iterable<T> iterable, BiConsumer<Builder, T> visitor) {
+          iterable.forEach(item -> visitor.accept(this, item));
+          return this;
         }
       }
     }
