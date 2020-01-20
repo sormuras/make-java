@@ -267,8 +267,8 @@ public class Make {
         }
       };
 
-      Call call(String... args) {
-        return Call.of(name(), args);
+      Call args(Object... args) {
+        return Call.newCall(name(), args).build();
       }
     }
 
@@ -354,9 +354,13 @@ public class Make {
       List<Call> calls();
 
       static /*record*/ Plan of(String name, boolean parallel, Call... calls) {
+        return of(name, parallel, List.of(calls));
+      }
+
+      static /*record*/ Plan of(String name, boolean parallel, List<Call> calls) {
         return new Plan() {
 
-          private final String $ = name + " {" + calls.length + (parallel ? " + parallel}" : "}");
+          private final String $ = name + " {" + calls.size() + (parallel ? " + parallel}" : "}");
 
           @Override
           public String toString() {
@@ -380,7 +384,7 @@ public class Make {
 
           @Override
           public List<Call> calls() {
-            return List.of(calls);
+            return calls;
           }
         };
       }
@@ -392,7 +396,7 @@ public class Make {
       /** Plan all realm compilations. */
       public Plan compile(Make make) {
         var compileRealms = make.project().realms().stream().map(realm -> compile(make, realm));
-        return Plan.of("Compile", false, compileRealms.toArray(Call[]::new));
+        return Plan.of("Compile", false, compileRealms.collect(Collectors.toList()));
       }
 
       /** Plan single realm compilation. */
@@ -401,25 +405,14 @@ public class Make {
           return Plan.of(String.format("No modules in %s realm", realm.name()), false);
         }
         var folder = make.folder();
-        var moduleSourcePath =
-            realm.moduleSourcePaths().stream()
-                .map(path -> folder.src().resolve(path))
-                .map(Path::toString)
-                .collect(Collectors.joining(File.pathSeparator))
-                .replace("${REALM}", realm.path().toString())
-                .replace("${MODULE}", "*");
-        var modulePath =
-            realm.dependencies().stream()
-                .map(other -> folder.out("modules", other.name())) // or "classes"
-                .map(Path::toString)
-                .collect(Collectors.joining(File.pathSeparator));
+        var modulePath = realm.modulePath(folder);
         var classes = folder.out("classes", realm.path().toString());
         return Plan.of(
             String.format("Compile %s realm", realm.name()),
             false,
             Call.newCall("javac")
                 .add("--module", String.join(",", realm.modules()))
-                .add("--module-source-path", moduleSourcePath)
+                .add("--module-source-path", realm.moduleSourcePath(folder))
                 .add(!modulePath.isEmpty(), "--module-path", modulePath)
                 .add("-d", classes)
                 .build(),
@@ -464,9 +457,37 @@ public class Make {
         return Plan.of(
             String.format("Jar %s modules and sources", realm.name()),
             false,
-            Default.CREATE_DIRECTORIES.call(modules.toString()),
-            Default.CREATE_DIRECTORIES.call(sources.toString()),
+            Default.CREATE_DIRECTORIES.args(modules),
+            Default.CREATE_DIRECTORIES.args(sources),
             Plan.of("Jar calls", true, calls.toArray(Call[]::new)));
+      }
+
+      public Plan javadoc(Make make) {
+        var project = make.project();
+        var file = project.name() + "-" + project.version();
+        var folder = make.folder();
+        var realm = project.realms().get(0); // main
+        var modulePath = realm.modulePath(folder);
+        var javadoc = folder.out("documentation", "javadoc");
+        return Plan.of(
+            "Call javadoc and jar generated site",
+            false,
+            Default.CREATE_DIRECTORIES.args(javadoc),
+            Call.newCall("javadoc")
+                .add("--module", String.join(",", realm.modules()))
+                .add("--module-source-path", realm.moduleSourcePath(folder))
+                .add(!modulePath.isEmpty(), "--module-path", modulePath)
+                .add("-d", javadoc)
+                .add("-quiet")
+                .build(),
+            Call.newCall("jar")
+                .add("--create")
+                .add("--file", javadoc.getParent().resolve(file + "-javadoc.jar"))
+                // .add(make.logger.verbose(), "--verbose")
+                .add("--no-manifest")
+                .add("-C", javadoc)
+                .add(".")
+                .build());
       }
 
       /** Creates the master build plan. */
@@ -477,15 +498,15 @@ public class Make {
         return Plan.of(
             String.format("Build project '%s' version '%s'", project.name(), project.version()),
             false,
-            Default.CREATE_DIRECTORIES.call(folder.out().toString()),
+            Default.CREATE_DIRECTORIES.args(folder.out()),
             Plan.of(
                 "Print version of each provided tool",
                 true,
                 Call.of("javac", "--version"),
                 Call.of("jar", "--version"),
                 Call.of("javadoc", "--version")),
-            compile(make),
-            Default.WRITE_SUMMARY.call(folder.out("summary.log").toString()));
+            Plan.of("Compile and generate API documentation", true, compile(make), javadoc(make)),
+            Default.WRITE_SUMMARY.args(folder.out("summary.log")));
       }
     }
   }
@@ -769,6 +790,22 @@ public class Make {
 
       public List<Realm> dependencies() {
         return dependencies;
+      }
+
+      public String moduleSourcePath(Folder folder) {
+        return moduleSourcePaths().stream()
+            .map(path -> folder.src().resolve(path))
+            .map(Path::toString)
+            .collect(Collectors.joining(File.pathSeparator))
+            .replace("${REALM}", path().toString())
+            .replace("${MODULE}", "*");
+      }
+
+      public String modulePath(Folder folder) {
+        return dependencies().stream()
+            .map(dependency -> folder.out("modules", dependency.name())) // or "classes"
+            .map(Path::toString)
+            .collect(Collectors.joining(File.pathSeparator));
       }
 
       public static class Builder {
