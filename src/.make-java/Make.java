@@ -97,18 +97,20 @@ public class Make {
   }
 
   private Make run(Tool.Call call, String indent) {
-    log(Level.DEBUG, indent + "run(%s)", call);
-
     if (call instanceof Tool.Plan) {
       var plan = ((Tool.Plan) call);
       var calls = plan.calls();
       if (calls.isEmpty()) return this;
       var stream = plan.parallel() ? calls.stream().parallel() : calls.stream();
-      stream.forEach(child -> run(child, indent + " "));
-      log(Level.DEBUG, indent + "end(%s)", call.name());
+      var start = Instant.now();
+      log(Level.DEBUG, indent + "┌─ %s", call);
+      stream.forEach(child -> run(child, indent + "| "));
+      var duration = Duration.between(start, Instant.now()).toMillis();
+      log(Level.DEBUG, indent + "└─[%s ms]", duration);
       return this;
     }
 
+    log(Level.DEBUG, indent + "· %s", call);
     if (Boolean.getBoolean("dry-run")) return this;
 
     var tool = ToolProvider.findFirst(call.name());
@@ -471,8 +473,9 @@ public class Make {
       @Override
       public Plan run(Make make, List<String> arguments) {
         var folder = make.folder();
+        var project = make.project();
         return Plan.of(
-            "/",
+            String.format("Build project '%s' version '%s'", project.name(), project.version()),
             false,
             Default.CREATE_DIRECTORIES.call(folder.out().toString()),
             Plan.of(
