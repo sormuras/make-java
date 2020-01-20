@@ -388,12 +388,8 @@ public class Make {
 
       /** Plan single realm compilation. */
       public Plan compile(Make make, Project.Realm realm) {
-        var name = realm.name();
-        var blank = name.isBlank();
-        var caption = blank ? "<default>" : name;
-        var replacement = blank ? "." : name;
         if (realm.modules().isEmpty()) {
-          return Plan.of(String.format("No modules in %s realm", caption), false);
+          return Plan.of(String.format("No modules in %s realm", realm.name()), false);
         }
         var folder = make.folder();
         var moduleSourcePath =
@@ -401,7 +397,7 @@ public class Make {
                 .map(path -> folder.src().resolve(path))
                 .map(Path::toString)
                 .collect(Collectors.joining(File.pathSeparator))
-                .replace("${REALM}", replacement)
+                .replace("${REALM}", realm.path().toString())
                 .replace("${MODULE}", "*");
         var modulePath =
             realm.dependencies().stream()
@@ -409,13 +405,13 @@ public class Make {
                 .map(Path::toString)
                 .collect(Collectors.joining(File.pathSeparator));
         return Plan.of(
-            String.format("Compile %s realm", caption),
+            String.format("Compile %s realm", realm.name()),
             false,
             Call.newCall("javac")
                 .add("--module", String.join(",", realm.modules()))
                 .add("--module-source-path", moduleSourcePath)
                 .add(!modulePath.isEmpty(), "--module-path", modulePath)
-                .add("-d", folder.out("classes", replacement))
+                .add("-d", folder.out("classes", realm.path().toString()))
                 .build());
       }
 
@@ -486,13 +482,16 @@ public class Make {
         builder.setLayout(layout);
         switch (layout) {
           case DEFAULT:
-            var main = Realm.Builder.of(logger, "main", folder, layout).build();
+            var main = Realm.Builder.of(logger, "main", Path.of("main"), folder, layout).build();
             var test =
-                Realm.Builder.of(logger, "test", folder, layout).setRealms(List.of(main)).build();
+                Realm.Builder.of(logger, "test", Path.of("test"), folder, layout)
+                    .setRealms(List.of(main))
+                    .build();
             builder.setRealms(List.of(main, test));
             break;
           case JIGSAW:
-            builder.setRealms(List.of(Realm.Builder.of(logger, "", folder, layout).build()));
+            var realm = Realm.Builder.of(logger, "default", Path.of("."), folder, layout).build();
+            builder.setRealms(List.of(realm));
             break;
         }
         return builder;
@@ -600,7 +599,7 @@ public class Make {
 
       public List<Path> paths(String realm) {
         switch (realm) {
-          case "":
+          case "default":
           case "main":
             return mainPaths;
           case "test":
@@ -671,13 +670,19 @@ public class Make {
     public /*record*/ static final class Realm {
 
       final String name;
+      final Path path;
       final List<String> modules;
       final List<Path> moduleSourcePaths;
       final List<Realm> dependencies;
 
       public Realm(
-          String name, List<String> modules, List<Path> moduleSourcePaths, Realm... dependencies) {
+          String name,
+          Path path,
+          List<String> modules,
+          List<Path> moduleSourcePaths,
+          Realm... dependencies) {
         this.name = name;
+        this.path = path;
         this.modules = List.copyOf(modules);
         this.moduleSourcePaths = List.copyOf(moduleSourcePaths);
         this.dependencies = List.of(dependencies);
@@ -685,6 +690,10 @@ public class Make {
 
       public String name() {
         return name;
+      }
+
+      public Path path() {
+        return path;
       }
 
       public List<String> modules() {
@@ -701,30 +710,38 @@ public class Make {
 
       public static class Builder {
 
-        public static Builder of(Logger logger, String realm, Folder folder, Layout layout) {
+        public static Builder of(
+            Logger logger, String realm, Path path, Folder folder, Layout layout) {
           var src = folder.src();
-          logger.log(Level.TRACE, "Parsing '%s' folder for %s realm assets.", src, realm);
-          var builder = new Builder(realm);
+          logger.log(Level.TRACE, "Parsing '%s' folder for %s realm assets: %s", src, realm, path);
           var info = layout.find(folder, realm);
-          builder.setModules(info.stream().map(Info::name).collect(Collectors.toList()));
-          builder.setModuleSourcePaths(layout.paths(realm));
-          return builder;
+          return new Builder(realm)
+              .setPath(path)
+              .setModules(info.stream().map(Info::name).collect(Collectors.toList()))
+              .setModuleSourcePaths(layout.paths(realm));
         }
 
         final String name;
+        Path path;
         List<String> modules;
         List<Path> moduleSourcePaths;
         List<Realm> realms;
 
         public Realm build() {
-          return new Realm(name, modules, moduleSourcePaths, realms.toArray(Realm[]::new));
+          return new Realm(name, path, modules, moduleSourcePaths, realms.toArray(Realm[]::new));
         }
 
         public Builder(String name) {
           this.name = name;
-          setModules(List.of());
-          setModuleSourcePaths(Layout.DEFAULT.paths(name));
-          setRealms(List.of());
+          this.setPath(Path.of(name.isBlank() ? "." : name))
+              .setModules(List.of())
+              .setModuleSourcePaths(Layout.DEFAULT.paths(name))
+              .setRealms(List.of());
+        }
+
+        public Builder setPath(Path path) {
+          this.path = path;
+          return this;
         }
 
         public Builder setModules(List<String> modules) {
