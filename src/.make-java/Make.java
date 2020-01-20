@@ -153,7 +153,7 @@ public class Make {
     /** Create default logger printing to {@link System#out} and {@link System#err}. */
     static Logger ofSystem(boolean verbose) {
       class SystemLogger implements Logger {
-        final Instant start = Instant.now();
+        private final Instant start = Instant.now();
 
         @Override
         public Logger log(Level level, String format, Object... args) {
@@ -169,6 +169,7 @@ public class Make {
     }
   }
 
+  /** Well-known directory and file locations. */
   public /*record*/ static final class Folder {
 
     public static Folder ofCurrentWorkingDirectory() {
@@ -282,7 +283,7 @@ public class Make {
       static /*record*/ Call of(String name, String... args) {
         return new Call() {
 
-          final String $ = name + (args.length == 0 ? "" : " " + String.join(" ", args));
+          private final String $ = name + (args.length == 0 ? "" : " " + String.join(" ", args));
 
           @Override
           public String toString() {
@@ -347,7 +348,7 @@ public class Make {
       static /*record*/ Plan of(String name, boolean parallel, Call... calls) {
         return new Plan() {
 
-          final String $ = name + " {" + calls.length + (parallel ? " + parallel}" : "}");
+          private final String $ = name + " {" + calls.length + (parallel ? " + parallel}" : "}");
 
           @Override
           public String toString() {
@@ -438,10 +439,10 @@ public class Make {
   /** Project model. */
   public /*record*/ static class Project {
 
-    final String name;
-    final Version version;
-    final Layout layout;
-    final List<Realm> realms;
+    private final String name;
+    private final Version version;
+    private final Layout layout;
+    private final List<Realm> realms;
 
     Project(String name, Version version, Layout layout, List<Realm> realms) {
       this.name = name;
@@ -669,11 +670,11 @@ public class Make {
     /** A named realm configuration, like "main" or "test". */
     public /*record*/ static final class Realm {
 
-      final String name;
-      final Path path;
-      final List<String> modules;
-      final List<Path> moduleSourcePaths;
-      final List<Realm> dependencies;
+      private final String name;
+      private final Path path;
+      private final List<String> modules;
+      private final List<Path> moduleSourcePaths;
+      private final List<Realm> dependencies;
 
       public Realm(
           String name,
@@ -721,11 +722,11 @@ public class Make {
               .setModuleSourcePaths(layout.paths(realm));
         }
 
-        final String name;
-        Path path;
-        List<String> modules;
-        List<Path> moduleSourcePaths;
-        List<Realm> realms;
+        private final String name;
+        private Path path;
+        private List<String> modules;
+        private List<Path> moduleSourcePaths;
+        private List<Realm> realms;
 
         public Realm build() {
           return new Realm(name, path, modules, moduleSourcePaths, realms.toArray(Realm[]::new));
