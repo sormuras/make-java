@@ -17,11 +17,15 @@ class MakeTests {
   @Test
   void defaults() {
     var logger = new Logger();
-    var make = new Make(logger);
+    var folder = Make.Folder.ofCurrentWorkingDirectory();
+    var project = Make.Project.Builder.of(logger, folder).build();
+    var planner = new Make.Tool.Planner();
+    var make = new Make(logger, folder, project, planner);
     assertSame(logger, make.logger());
     assertEquals(Path.of(""), make.folder().base());
     assertEquals(Path.of("README.md"), make.folder().base("README.md"));
     assertEquals(Path.of("src"), make.folder().src());
+    assertEquals(Path.of("src", "foo"), make.folder().src("foo"));
     assertEquals(Path.of("lib"), make.folder().lib());
     assertEquals(Path.of(".make-java"), make.folder().out());
     assertEquals("make-java", make.project().name());
