@@ -118,7 +118,7 @@ public class Make {
       var out = new StringWriter();
       var err = new StringWriter();
       var array = call.args().toArray(String[]::new);
-      var code = tool.get().run(new PrintWriter(out, true), new PrintWriter(err, true), array);
+      var code = tool.get().run(new PrintWriter(out), new PrintWriter(err), array);
       out.toString().lines().forEach(line -> log(Level.TRACE, indent + "  %s", line));
       err.toString().lines().forEach(line -> log(Level.WARNING, indent + "  %s", line));
       if (code != 0) {
