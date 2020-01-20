@@ -411,7 +411,7 @@ public class Make {
                 .map(other -> folder.out("modules", other.name())) // or "classes"
                 .map(Path::toString)
                 .collect(Collectors.joining(File.pathSeparator));
-        var destination = folder.out("classes", realm.path().toString());
+        var classes = folder.out("classes", realm.path().toString());
         return Plan.of(
             String.format("Compile %s realm", realm.name()),
             false,
@@ -419,7 +419,7 @@ public class Make {
                 .add("--module", String.join(",", realm.modules()))
                 .add("--module-source-path", moduleSourcePath)
                 .add(!modulePath.isEmpty(), "--module-path", modulePath)
-                .add("-d", destination)
+                .add("-d", classes)
                 .build(),
             jar(make, realm));
       }
@@ -429,24 +429,41 @@ public class Make {
           return Plan.of(String.format("No modules in %s realm", realm.name()), false);
         }
         var folder = make.folder();
-        var destination = folder.out("modules", realm.path().toString());
+        var layout = make.project().layout();
+        var realmPath = realm.path().toString();
+        var modules = folder.out("modules", realmPath);
+        var sources = folder.out("sources", realmPath);
         var calls = new ArrayList<Call>();
         for (var module : realm.modules()) {
-          var file = destination.resolve(module + "-" + make.project().version() + ".jar");
-          var content = folder.out("classes", realm.path().toString(), module);
+          var file = module + "-" + make.project().version();
+          var classes = folder.out("classes", realmPath, module);
           calls.add(
               Call.newCall("jar")
                   .add("--create")
-                  .add("--file", file)
+                  .add("--file", modules.resolve(file + ".jar"))
                   // .add(make.logger.verbose(), "--verbose")
-                  .add("-C", content)
+                  .add("-C", classes)
                   .add(".")
+                  .build());
+          calls.add(
+              Call.newCall("jar")
+                  .add("--create")
+                  .add("--file", sources.resolve(file + "-sources.jar"))
+                  // .add(make.logger.verbose(), "--verbose")
+                  .add("--no-manifest")
+                  .forEach(
+                      layout.paths(realm.name, module),
+                      (call, path) -> {
+                        var content = folder.src().resolve(path);
+                        if (Files.isDirectory(content)) call.add("-C", content).add(".");
+                      })
                   .build());
         }
         return Plan.of(
-            String.format("Jar %s module(s)", realm.name()),
+            String.format("Jar %s modules and sources", realm.name()),
             false,
-            Default.CREATE_DIRECTORIES.call(destination.toString()),
+            Default.CREATE_DIRECTORIES.call(modules.toString()),
+            Default.CREATE_DIRECTORIES.call(sources.toString()),
             Plan.of("Jar calls", true, calls.toArray(Call[]::new)));
       }
 
@@ -641,6 +658,14 @@ public class Make {
             return testPaths;
         }
         throw new IllegalArgumentException("Unsupported realm name: " + realm);
+      }
+
+      public List<Path> paths(String realm, String module) {
+        return paths(realm).stream()
+            .map(Path::toString)
+            .map(s -> s.contains("${MODULE}") ? s.replace("${MODULE}", module) : module)
+            .map(Path::of)
+            .collect(Collectors.toList());
       }
 
       public boolean matches(String string) {
