@@ -45,10 +45,6 @@ public class Make {
   private final Tool.Planner planner;
   private final List<String> log;
 
-  Make(Logger logger) {
-    this(logger, Folder.of(), Project.Builder.of(logger, Path.of("")).build(), new Tool.Planner());
-  }
-
   Make(Logger logger, Folder folder, Project project, Tool.Planner planner) {
     this.logger = logger;
     this.folder = folder;
@@ -171,7 +167,7 @@ public class Make {
 
   public /*record*/ static final class Folder {
 
-    public static Folder of() {
+    public static Folder ofCurrentWorkingDirectory() {
       return of(Path.of(""));
     }
 
@@ -428,14 +424,16 @@ public class Make {
 
       private String name = "project";
       private String version = "1-ea";
-      private Realm main = new Realm.Builder("main").build();
-      private Realm test = new Realm.Builder("test").build();
+      private Realm main;
+      private Realm test;
 
-      public static Builder of(Logger logger, Path base) {
+      public static Builder of(Logger logger, Folder folder) {
         var builder = new Builder();
-        var absolute = base.toAbsolutePath();
+        var absolute = folder.base().toAbsolutePath();
         logger.log(Level.TRACE, "Parsing directory '%s' for project properties.", absolute);
         Optional.ofNullable(absolute.getFileName()).map(Path::toString).ifPresent(builder::setName);
+        builder.setMain(Realm.Builder.of(logger, "main", folder).build());
+        builder.setTest(Realm.Builder.of(logger, "test", folder).build());
         return builder;
       }
 
@@ -489,6 +487,25 @@ public class Make {
       }
 
       public static class Builder {
+
+        public static Builder of(Logger logger, String name, Folder folder) {
+          var src = folder.src();
+          logger.log(Level.TRACE, "Parsing '%s' folder for %s realm assets.", src, name);
+          var builder = new Builder(name);
+          try (var stream = Files.find(src, 5, (path, __) -> path.endsWith("module-info.java"))) {
+            var strings =
+                stream
+                    .map(src::relativize)
+                    .map(Path::getParent)
+                    .map(Path::toString)
+                    .map(string -> string.replace(File.separatorChar, '/'))
+                    .collect(Collectors.toList());
+            strings.forEach(string -> logger.log(Level.TRACE, "%s", string));
+          } catch (Exception e) {
+            throw new Error(e);
+          }
+          return builder;
+        }
 
         final String name;
         List<String> modules;
