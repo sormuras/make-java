@@ -30,8 +30,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 import java.util.spi.ToolProvider;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /** Modular Java Build Tool. */
 public class Make {
@@ -462,6 +464,95 @@ public class Make {
       }
     }
 
+    /** Module source directory tree layout. */
+    public enum Layout {
+      /**
+       * Default tree layout of main/test realms with nested java/resources directories.
+       *
+       * <ul>
+       *   <li>{@code src/${MODULE}/${REALM}/java/module-info.java}
+       * </ul>
+       *
+       * Module source path examples:
+       *
+       * <ul>
+       *   <li>{@code --module-source-path src/ * /main/java}
+       *   <li>{@code --module-source-path src/ * /test/java:src/ * /test/module}
+       * </ul>
+       */
+      DEFAULT(Pattern.compile(".+/(main|test)/(java|module)")),
+
+      /**
+       * Simple directory tree layout.
+       *
+       * <ul>
+       *   <li>{@code src/${MODULE}/module-info.java}
+       * </ul>
+       *
+       * Module source path example:
+       *
+       * <ul>
+       *   <li>{@code --module-source-path src}
+       * </ul>
+       *
+       * @see <a href="https://openjdk.java.net/projects/jigsaw/quick-start">Project Jigsaw: Module
+       *     System Quick-Start Guide</a>
+       */
+      JIGSAW(Pattern.compile(".+")),
+
+      /**
+       * Group-based default directory tree layout.
+       *
+       * <ul>
+       *   <li>{@code src/${GROUP}/${MODULE}/${REALM}/java/module-info.java}
+       * </ul>
+       *
+       * Module source path examples with groups:
+       *
+       * <ul>
+       *   <li>{@code --module-source-path src/org.junit.jupiter/ * /main/java}
+       *   <li>{@code --module-source-path src/org.junit.platform/ * /main/java}
+       * </ul>
+       */
+      GROUPED(Pattern.compile(".+/.+/(main|test)/(java|module)"));
+
+      private final Pattern pattern;
+      private final long separators;
+
+      Layout(Pattern pattern) {
+        this.pattern = pattern;
+        this.separators = pattern.toString().chars().filter(c -> c == '/').count();
+      }
+
+      public boolean matches(String string) {
+        return separators == string.chars().filter(c -> c == '/').count()
+            && pattern.matcher(string).matches();
+      }
+
+      /** Return modular layout constant of the specified root directory. */
+      public static Optional<Layout> valueOf(Path root) throws Exception {
+        try (var stream = Files.find(root, 5, (path, __) -> path.endsWith("module-info.java"))) {
+          return valueOf(stream.map(root::relativize));
+        }
+      }
+
+      /** Return modular layout constant matching all given paths. */
+      public static Optional<Layout> valueOf(Stream<Path> paths) {
+        var strings =
+            paths
+                .map(Path::getParent)
+                .map(Path::toString)
+                .map(string -> string.replace(File.separatorChar, '/'))
+                .collect(Collectors.toList());
+        if (strings.isEmpty()) return Optional.empty();
+        for (var layout : values()) {
+          if (strings.stream().allMatch(layout::matches)) return Optional.of(layout);
+        }
+        return Optional.empty();
+      }
+    }
+
+    /** A named realm configuration, like "main" or "test". */
     public /*record*/ static final class Realm {
 
       final String name;
