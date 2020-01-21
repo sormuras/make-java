@@ -89,6 +89,10 @@ public class Make {
       Tool.print(plan);
       return this;
     }
+    if (project.realms().stream().mapToLong(realm -> realm.modules().size()).sum() == 0) {
+      log(Level.WARNING, "No modules defined in project!");
+      return this;
+    }
     return run(plan);
   }
 
@@ -463,10 +467,17 @@ public class Make {
       }
 
       public Plan javadoc(Make make) {
+        var main = make.project().realms().get(0); // main
+        return javadoc(make, main);
+      }
+
+      public Plan javadoc(Make make, Project.Realm realm) {
+        if (realm.modules().isEmpty()) {
+          return Plan.of(String.format("No modules in %s realm", realm.name()), false);
+        }
         var project = make.project();
         var file = project.name() + "-" + project.version();
         var folder = make.folder();
-        var realm = project.realms().get(0); // main
         var modulePath = realm.modulePath(folder);
         var javadoc = folder.out("documentation", "javadoc");
         return Plan.of(
