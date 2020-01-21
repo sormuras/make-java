@@ -9,8 +9,8 @@ class Build {
     var logger = Make.Logger.ofSystem(true).log(Level.INFO, "Build.java (args=%s)", List.of(args));
     var folder = Make.Folder.ofCurrentWorkingDirectory();
     var project = Make.Project.Builder.of(logger, folder).setVersion("1-ea").build();
-    var planner = new Make.Tool.Planner();
+    var plan = Make.Tool.Plan.of(logger, folder, project);
 
-    new Make(logger, folder, project, planner).run();
+    new Make(logger, folder, project, plan).run();
   }
 }

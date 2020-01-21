@@ -1,8 +1,9 @@
-import java.lang.System.Logger.Level;
+import java.time.Instant;
 
 public class Logger implements Make.Logger {
 
-  boolean verbose;
+  private final boolean verbose;
+  private final Instant start;
 
   Logger() {
     this(false);
@@ -10,11 +11,17 @@ public class Logger implements Make.Logger {
 
   Logger(boolean verbose) {
     this.verbose = verbose;
+    this.start = Instant.now();
   }
 
   @Override
-  public Make.Logger log(Level level, String format, Object... args) {
-    if (verbose) System.out.println(String.format(format, args));
+  public boolean verbose() {
+    return verbose;
+  }
+
+  @Override
+  public Make.Logger log(Entry entry) {
+    if (verbose) System.out.println(entry.toString(start));
     return this;
   }
 }

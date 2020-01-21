@@ -10,9 +10,9 @@ class ExampleTests {
     var logger = new Logger(true);
     var folder = Make.Folder.of(Path.of("doc", "example", example));
     var project = Make.Project.Builder.of(logger, folder).build();
-    var planner = new Make.Tool.Planner();
+    var plan = Make.Tool.Plan.of(logger, folder, project);
 
-    return new Make(logger, folder, project, planner);
+    return new Make(logger, folder, project, plan);
   }
 
   @ParameterizedTest

@@ -19,8 +19,8 @@ class MakeTests {
     var logger = new Logger();
     var folder = Make.Folder.ofCurrentWorkingDirectory();
     var project = Make.Project.Builder.of(logger, folder).build();
-    var planner = new Make.Tool.Planner();
-    var make = new Make(logger, folder, project, planner);
+    var plan = Make.Tool.Plan.of(logger, folder, project);
+    var make = new Make(logger, folder, project, plan); // don't run()
     assertSame(logger, make.logger());
     assertEquals(Path.of(""), make.folder().base());
     assertEquals(Path.of("README.md"), make.folder().base("README.md"));

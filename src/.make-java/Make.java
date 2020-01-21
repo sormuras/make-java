@@ -32,7 +32,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.regex.Pattern;
 import java.util.spi.ToolProvider;
 import java.util.stream.Collectors;
@@ -47,20 +46,20 @@ public class Make {
   private final Logger logger;
   private final Folder folder;
   private final Project project;
-  private final Tool.Planner planner;
-  private final List<String> log;
+  private final Tool.Plan plan;
+  private final Summary summary;
 
-  Make(Logger logger, Folder folder, Project project, Tool.Planner planner) {
+  Make(Logger logger, Folder folder, Project project, Tool.Plan plan) {
     this.logger = logger;
     this.folder = folder;
     this.project = project;
-    this.planner = planner;
-    this.log = new ArrayList<>();
+    this.plan = plan;
+    this.summary = new Summary();
     log(Level.INFO, "%s", this);
     log(Level.DEBUG, "Java %s", Runtime.version());
-    log(Level.DEBUG, "Folder %s", folder);
-    log(Level.DEBUG, "Project %s", project);
-    log(Level.DEBUG, "Planner %s", planner);
+    log(Level.DEBUG, "Folder %s", folder());
+    log(Level.DEBUG, "Project %s", project());
+    log(Level.DEBUG, "Plan %s", plan());
   }
 
   public Logger logger() {
@@ -75,47 +74,50 @@ public class Make {
     return project;
   }
 
+  public Tool.Plan plan() {
+    return plan;
+  }
+
   private synchronized String log(Level level, String format, Object... args) {
     var message = String.format(format, args);
-    log.add(Instant.now() + "|" + level + "|" + Thread.currentThread().getName() + "|" + message);
-    logger.log(level, message);
+    var entry = Logger.Entry.of(level, message);
+    summary.entries.add(entry);
+    logger().log(entry);
     return message;
   }
 
   public Make run() {
-    log(Level.INFO, "Make %s %s", project.name(), project.version());
-    var plan = planner.run(this, List.of());
-    if (Boolean.getBoolean("dry-run")) {
-      Tool.print(plan);
-      return this;
-    }
-    if (project.realms().stream().mapToLong(realm -> realm.modules().size()).sum() == 0) {
+    log(Level.INFO, "Make %s %s", project().name(), project().version());
+    if (logger().verbose()) Tool.print(plan());
+    if (Boolean.getBoolean("dry-run")) return this;
+    if (project().realms().stream().mapToLong(realm -> realm.modules().size()).sum() == 0) {
       log(Level.WARNING, "No modules defined in project!");
       return this;
     }
-    return run(plan);
+    return run(plan());
   }
 
   public Make run(Tool.Call call) {
-    return run(call, "");
-  }
-
-  private Make run(Tool.Call call, String indent) {
     if (call instanceof Tool.Plan) {
       var plan = ((Tool.Plan) call);
       var calls = plan.calls();
       if (calls.isEmpty()) return this;
+      // log(Level.DEBUG, "┌─ %s", call);
       var stream = plan.parallel() ? calls.stream().parallel() : calls.stream();
       var start = Instant.now();
-      log(Level.DEBUG, indent + "┌─ %s", call);
-      stream.forEach(child -> run(child, indent + "| "));
+      stream.forEach(this::run);
       var duration = Duration.between(start, Instant.now()).toMillis();
-      log(Level.DEBUG, indent + "└─[%s ms]", duration);
+      log(Level.DEBUG, "%d ms for running: %s", duration, plan.name());
       return this;
     }
+    runTool(call);
+    return this;
+  }
 
-    log(Level.DEBUG, indent + "· %s", call);
-    if (Boolean.getBoolean("dry-run")) return this;
+  private void runTool(Tool.Call call) {
+    if (call instanceof Tool.Plan) throw new IllegalArgumentException("No plan!");
+    log(Level.DEBUG, "· %s", call);
+    if (Boolean.getBoolean("dry-run")) return;
 
     var tool = ToolProvider.findFirst(call.name());
     if (tool.isPresent()) {
@@ -123,13 +125,13 @@ public class Make {
       var err = new StringWriter();
       var array = call.args().toArray(String[]::new);
       var code = tool.get().run(new PrintWriter(out), new PrintWriter(err), array);
-      out.toString().lines().forEach(line -> log(Level.TRACE, indent + "  %s", line));
-      err.toString().lines().forEach(line -> log(Level.WARNING, indent + "  %s", line));
+      out.toString().lines().forEach(line -> log(Level.TRACE, "  %s", line));
+      err.toString().lines().forEach(line -> log(Level.WARNING, "  %s", line));
       if (code != 0) {
         var message = log(Level.ERROR, "%s run failed: %d", call.name(), code);
         throw new Error(message, new RuntimeException(err.toString()));
       }
-      return this;
+      return;
     }
 
     try {
@@ -138,8 +140,6 @@ public class Make {
       var message = log(Level.ERROR, "%s run failed: %s -> ", call.name(), e.getMessage());
       throw new Error(message, e);
     }
-
-    return this;
   }
 
   @Override
@@ -149,8 +149,62 @@ public class Make {
 
   /** Simple Logger API. */
   public interface Logger {
+
     /** Log the formatted message at the specified level. */
-    Logger log(Level level, String format, Object... args);
+    default Logger log(Level level, String format, Object... args) {
+      return log(Entry.of(level, String.format(format, args)));
+    }
+
+    /** Log the given entry. */
+    Logger log(Entry entry);
+
+    default boolean verbose() {
+      return false;
+    }
+
+    interface /*record*/ Entry {
+      long thread();
+
+      Instant instant();
+
+      Level level();
+
+      String message();
+
+      default String toString(Instant start) {
+        var level = level().getName().substring(0, 1);
+        var split = Duration.between(start, instant()).toMillis();
+        var thread = thread() == 1 ? "main" : String.format("%4X", thread());
+        return String.format("%s %5s %s| %s", level, split, thread, message());
+      }
+
+      static Entry of(Level level, String message) {
+        var thread = Thread.currentThread().getId();
+        var instant = Instant.now();
+        return new Entry() {
+
+          @Override
+          public long thread() {
+            return thread;
+          }
+
+          @Override
+          public Instant instant() {
+            return instant;
+          }
+
+          @Override
+          public Level level() {
+            return level;
+          }
+
+          @Override
+          public String message() {
+            return message;
+          }
+        };
+      }
+    }
 
     /** Create default logger printing to {@link System#out} and {@link System#err}. */
     static Logger ofSystem() {
@@ -163,16 +217,38 @@ public class Make {
         private final Instant start = Instant.now();
 
         @Override
-        public Logger log(Level level, String format, Object... args) {
+        public Logger log(Entry entry) {
+          var level = entry.level();
           if (level.compareTo(Level.INFO) < 0 && !verbose) return this;
-          var millis = Duration.between(start, Instant.now()).toMillis();
-          var message = String.format(format, args);
           var stream = level.compareTo(Level.WARNING) < 0 ? System.out : System.err;
-          stream.printf(verbose ? "%7d|%7s| %s%n" : "%3$s%n", millis, level, message);
+          stream.println(verbose ? entry.toString(start) : entry.message());
           return this;
+        }
+
+        @Override
+        public boolean verbose() {
+          return verbose;
         }
       }
       return new SystemLogger();
+    }
+  }
+
+  /** Build summary. */
+  private class Summary {
+
+    List<Logger.Entry> entries = new ArrayList<>();
+
+    void write(Path file) throws Exception {
+      var lines = new ArrayList<String>();
+      lines.add("# Project Build Summary");
+      lines.add("## Plan");
+      Tool.print(plan(), "", "  ", (indent, call) -> lines.add(indent + " - " + call.toMarkDown()));
+      lines.add("## Log");
+      lines.add("```log");
+      entries.forEach(entry -> lines.add(" - " + entry.toString(Instant.EPOCH)));
+      lines.add("```");
+      Files.write(file, lines);
     }
   }
 
@@ -240,15 +316,15 @@ public class Make {
     R run(Make make, List<String> arguments) throws Exception;
 
     /** Recursively print the given tool call to {@link System#out} */
-    static void print(Call call) {
-      print(call, "", "\t", System.out::println);
+    static void print(Call root) {
+      print(root, "", "\t", (indent, call) -> System.out.printf("%s%s%n", indent, call));
     }
 
-    static void print(Call call, String indent, String increment, Consumer<String> consumer) {
-      consumer.accept(indent + call);
+    static void print(Call call, String indent, String inc, BiConsumer<String, Call> consumer) {
+      consumer.accept(indent, call);
       if (call instanceof Tool.Plan) {
         var plan = ((Tool.Plan) call);
-        for (var child : plan.calls()) print(child, indent + increment, increment, consumer);
+        for (var child : plan.calls()) print(child, indent + inc, inc, consumer);
       }
     }
 
@@ -262,11 +338,11 @@ public class Make {
           return make;
         }
       },
-      /** Writes all log messages to file specified by the first argument. */
+      /** Writes all log messages to the file specified by the first argument. */
       WRITE_SUMMARY {
         @Override
         public Make run(Make make, List<String> arguments) throws Exception {
-          Files.write(Path.of(arguments.get(0)), make.log);
+          make.summary.write(Path.of(arguments.get(0)));
           return make;
         }
       };
@@ -282,6 +358,10 @@ public class Make {
       String name();
 
       List<String> args();
+
+      default String toMarkDown() {
+        return "`" + toString() + "`";
+      }
 
       static Builder newCall(String name, Object... initials) {
         return new Builder(name, initials);
@@ -357,6 +437,15 @@ public class Make {
 
       List<Call> calls();
 
+      @Override
+      default String toMarkDown() {
+        return toString();
+      }
+
+      static Plan of(Logger logger, Folder folder, Project project) {
+        return new Make.Planner(logger, folder, project).build();
+      }
+
       static /*record*/ Plan of(String name, boolean parallel, Call... calls) {
         return of(name, parallel, List.of(calls));
       }
@@ -391,133 +480,6 @@ public class Make {
             return calls;
           }
         };
-      }
-    }
-
-    /** Planner plans plans. */
-    class Planner implements Tool<Plan> {
-
-      /** Plan all realm compilations. */
-      public Plan compile(Make make) {
-        var compileRealms = make.project().realms().stream().map(realm -> compile(make, realm));
-        return Plan.of("Compile", false, compileRealms.collect(Collectors.toList()));
-      }
-
-      /** Plan single realm compilation. */
-      public Plan compile(Make make, Project.Realm realm) {
-        if (realm.modules().isEmpty()) {
-          return Plan.of(String.format("No modules in %s realm", realm.name()), false);
-        }
-        var folder = make.folder();
-        var modulePath = realm.modulePath(folder);
-        var classes = folder.out("classes", realm.path().toString());
-        return Plan.of(
-            String.format("Compile %s realm", realm.name()),
-            false,
-            Call.newCall("javac")
-                .add("--module", String.join(",", realm.modules()))
-                .add("--module-source-path", realm.moduleSourcePath(folder))
-                .add(!modulePath.isEmpty(), "--module-path", modulePath)
-                .add("-d", classes)
-                .build(),
-            jar(make, realm));
-      }
-
-      public Plan jar(Make make, Project.Realm realm) {
-        if (realm.modules().isEmpty()) {
-          return Plan.of(String.format("No modules in %s realm", realm.name()), false);
-        }
-        var folder = make.folder();
-        var layout = make.project().layout();
-        var realmPath = realm.path().toString();
-        var modules = folder.out("modules", realmPath);
-        var sources = folder.out("sources", realmPath);
-        var calls = new ArrayList<Call>();
-        for (var module : realm.modules()) {
-          var file = module + "-" + make.project().version();
-          var classes = folder.out("classes", realmPath, module);
-          calls.add(
-              Call.newCall("jar")
-                  .add("--create")
-                  .add("--file", modules.resolve(file + ".jar"))
-                  // .add(make.logger.verbose(), "--verbose")
-                  .add("-C", classes)
-                  .add(".")
-                  .build());
-          calls.add(
-              Call.newCall("jar")
-                  .add("--create")
-                  .add("--file", sources.resolve(file + "-sources.jar"))
-                  // .add(make.logger.verbose(), "--verbose")
-                  .add("--no-manifest")
-                  .forEach(
-                      layout.paths(realm.name, module),
-                      (call, path) -> {
-                        var content = folder.src().resolve(path);
-                        if (Files.isDirectory(content)) call.add("-C", content).add(".");
-                      })
-                  .build());
-        }
-        return Plan.of(
-            String.format("Jar %s modules and sources", realm.name()),
-            false,
-            Default.CREATE_DIRECTORIES.args(modules),
-            Default.CREATE_DIRECTORIES.args(sources),
-            Plan.of("Jar calls", true, calls.toArray(Call[]::new)));
-      }
-
-      public Plan javadoc(Make make) {
-        var main = make.project().realms().get(0); // main
-        return javadoc(make, main);
-      }
-
-      public Plan javadoc(Make make, Project.Realm realm) {
-        if (realm.modules().isEmpty()) {
-          return Plan.of(String.format("No modules in %s realm", realm.name()), false);
-        }
-        var project = make.project();
-        var file = project.name() + "-" + project.version();
-        var folder = make.folder();
-        var modulePath = realm.modulePath(folder);
-        var javadoc = folder.out("documentation", "javadoc");
-        return Plan.of(
-            "Call javadoc and jar generated site",
-            false,
-            Default.CREATE_DIRECTORIES.args(javadoc),
-            Call.newCall("javadoc")
-                .add("--module", String.join(",", realm.modules()))
-                .add("--module-source-path", realm.moduleSourcePath(folder))
-                .add(!modulePath.isEmpty(), "--module-path", modulePath)
-                .add("-d", javadoc)
-                .add("-quiet")
-                .build(),
-            Call.newCall("jar")
-                .add("--create")
-                .add("--file", javadoc.getParent().resolve(file + "-javadoc.jar"))
-                // .add(make.logger.verbose(), "--verbose")
-                .add("--no-manifest")
-                .add("-C", javadoc)
-                .add(".")
-                .build());
-      }
-
-      /** Creates the master build plan. */
-      @Override
-      public Plan run(Make make, List<String> arguments) {
-        var folder = make.folder();
-        var project = make.project();
-        return Plan.of(
-            String.format("Build project '%s' version '%s'", project.name(), project.version()),
-            false,
-            Default.CREATE_DIRECTORIES.args(folder.out()),
-            Plan.of(
-                "Print version of each provided tool",
-                true,
-                Call.of("javac", "--version"),
-                Call.of("jar", "--version"),
-                Call.of("javadoc", "--version")),
-            Plan.of("Compile and generate API documentation", true, compile(make), javadoc(make)),
-            Default.WRITE_SUMMARY.args(folder.out("summary.log")));
       }
     }
   }
@@ -870,6 +832,149 @@ public class Make {
           return this;
         }
       }
+    }
+  }
+
+  /** Planner plans plans. */
+  public static class Planner {
+
+    private final Logger logger;
+    private final Folder folder;
+    private final Project project;
+
+    public Planner(Logger logger, Folder folder, Project project) {
+      this.logger = logger;
+      this.folder = folder;
+      this.project = project;
+    }
+
+    public Logger logger() {
+      return logger;
+    }
+
+    public Folder folder() {
+      return folder;
+    }
+
+    public Project project() {
+      return project;
+    }
+
+    /** Plan all realm compilations. */
+    public Tool.Plan compile() {
+      var compileRealms = project().realms().stream().map(this::compile);
+      return Tool.Plan.of("Compile", false, compileRealms.collect(Collectors.toList()));
+    }
+
+    /** Plan single realm compilation. */
+    public Tool.Plan compile(Project.Realm realm) {
+      if (realm.modules().isEmpty()) {
+        return Tool.Plan.of(String.format("No modules in %s realm", realm.name()), false);
+      }
+      var modulePath = realm.modulePath(folder);
+      var classes = folder.out("classes", realm.path().toString());
+      return Tool.Plan.of(
+          String.format("Compile %s realm", realm.name()),
+          false,
+          Tool.Call.newCall("javac")
+              .add("--module", String.join(",", realm.modules()))
+              .add("--module-source-path", realm.moduleSourcePath(folder))
+              .add(!modulePath.isEmpty(), "--module-path", modulePath)
+              .add("-d", classes)
+              .build(),
+          jar(realm));
+    }
+
+    public Tool.Plan jar(Project.Realm realm) {
+      if (realm.modules().isEmpty()) {
+        return Tool.Plan.of(String.format("No modules in %s realm", realm.name()), false);
+      }
+      var folder = folder();
+      var layout = project().layout();
+      var realmPath = realm.path().toString();
+      var modules = folder.out("modules", realmPath);
+      var sources = folder.out("sources", realmPath);
+      var calls = new ArrayList<Tool.Call>();
+      for (var module : realm.modules()) {
+        var file = module + "-" + project().version();
+        var classes = folder.out("classes", realmPath, module);
+        calls.add(
+            Tool.Call.newCall("jar")
+                .add("--create")
+                .add("--file", modules.resolve(file + ".jar"))
+                .add(logger().verbose(), "--verbose")
+                .add("-C", classes)
+                .add(".")
+                .build());
+        calls.add(
+            Tool.Call.newCall("jar")
+                .add("--create")
+                .add("--file", sources.resolve(file + "-sources.jar"))
+                .add(logger().verbose(), "--verbose")
+                .add("--no-manifest")
+                .forEach(
+                    layout.paths(realm.name, module),
+                    (call, path) -> {
+                      var content = folder.src().resolve(path);
+                      if (Files.isDirectory(content)) call.add("-C", content).add(".");
+                    })
+                .build());
+      }
+      return Tool.Plan.of(
+          String.format("Jar %s modules and sources", realm.name()),
+          false,
+          Tool.Default.CREATE_DIRECTORIES.args(modules),
+          Tool.Default.CREATE_DIRECTORIES.args(sources),
+          Tool.Plan.of("Jar calls", true, calls.toArray(Tool.Call[]::new)));
+    }
+
+    public Tool.Plan javadoc() {
+      var main = project().realms().get(0); // main
+      return javadoc(main);
+    }
+
+    public Tool.Plan javadoc(Project.Realm realm) {
+      if (realm.modules().isEmpty()) {
+        return Tool.Plan.of(String.format("No modules in %s realm", realm.name()), false);
+      }
+      var file = project.name() + "-" + project.version();
+      var modulePath = realm.modulePath(folder);
+      var javadoc = folder.out("documentation", "javadoc");
+      return Tool.Plan.of(
+          "Generate API documentation and jar generated site",
+          false,
+          Tool.Default.CREATE_DIRECTORIES.args(javadoc),
+          Tool.Call.newCall("javadoc")
+              .add("--module", String.join(",", realm.modules()))
+              .add("--module-source-path", realm.moduleSourcePath(folder))
+              .add(!modulePath.isEmpty(), "--module-path", modulePath)
+              .add("-d", javadoc)
+              .add(!logger().verbose(), "-quiet")
+              .build(),
+          Tool.Call.newCall("jar")
+              .add("--create")
+              .add("--file", javadoc.getParent().resolve(file + "-javadoc.jar"))
+              .add(logger().verbose(), "--verbose")
+              .add("--no-manifest")
+              .add("-C", javadoc)
+              .add(".")
+              .build());
+    }
+
+    /** Creates the build plan. */
+    public Tool.Plan build() {
+      return Tool.Plan.of(
+          String.format("Build project '%s' version '%s'", project().name(), project().version()),
+          false,
+          Tool.Default.CREATE_DIRECTORIES.args(folder().out()),
+          Tool.Plan.of(
+              "Print version of each provided tool",
+              true,
+              Tool.Call.of("javac", "--version"),
+              Tool.Call.of("jar", "--version"),
+              Tool.Call.of("javadoc", "--version")),
+          Tool.Plan.of("Compile and generate API documentation", true, compile(), javadoc()),
+          Tool.Default.WRITE_SUMMARY.args(folder().out("summary.md")));
     }
   }
 }
