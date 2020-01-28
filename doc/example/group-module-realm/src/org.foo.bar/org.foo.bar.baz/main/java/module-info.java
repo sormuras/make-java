@@ -1,1 +1,1 @@
-module org.foo.baz {}
+module org.foo.bar.baz {}
